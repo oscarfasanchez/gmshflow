@@ -616,6 +616,7 @@ class LineGeometryHandler:
 
 
     def convert_to_points_for_threshold_fields(self):
+        #TODO fix name, and include this function inside create line and poly etc
         # Implementation of conversion to points for threshold fields
         assert 'cs' in self.gdf_line.columns, 'gdf must have cell size column(cs)'
         gdf2 = self.gdf_line.copy()
