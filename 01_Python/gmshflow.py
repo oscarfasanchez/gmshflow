@@ -16,6 +16,20 @@ geo = gmsh.model.geo
 import shapely
 from shapely.geometry import Point
 
+def merge_many_multilinestring_into_one_linestring(gdf):
+    # This function merges many multilinestrings into one linestring
+    # check if the geodataframe has multilinestrings
+    assert any(gdf.geom_type == 'MultiLineString'), 'The geodataframe must have multilinestrings'
+    # explode the multilinestrings
+    gdf2 = gdf.explode().reset_index()
+    # group the linestrings by the index
+    gdf.geometry = gdf2.groupby('index')['geometry'].apply(
+        lambda x: shapely.ops.linemerge(list(x), directed=True))
+    #check that there are no Multilinestrings anymore and, that the number of lines is the same as the original
+    assert all(gdf.geom_type == 'LineString'), 'The geodataframe must have only linestrings, then the algorithm didnt work'
+
+    return gdf
+
 class GmshModel:
     def __init__(self, name):
         gmsh.initialize()
@@ -453,12 +467,12 @@ class LineGeometryHandler:
 
     def set_gpd_line(self, gdf_line: gpd.GeoDataFrame):
         # check it is a line dataframe
-        assert all((gdf_fault.geom_type == 'LineString')|(gdf_fault.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
+        assert all((gdf_line.geom_type == 'LineString')|(gdf_line.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
         #check that it has a column called cs or cs_line is not None
         
             
         assert 'cs' in gdf_line.columns or self.cs_line is not None, 'The geodataframe must have a cell size column or cs_line must be defined'
-        if any(gdf_fault.geom_type == 'MultiLineString'):
+        if any(gdf_line.geom_type == 'MultiLineString'):
             self.gdf_line = gdf_line.explode().reset_index()
         else:  
             self.gdf_line = gdf_line
@@ -502,28 +516,43 @@ class LineGeometryHandler:
         ind_s_buff = []
 
         #the lack of space to mesh requires further simplification
-        self.gdf_line.geometry = self.gdf_line.geometry.simplify(self.cs_line * simpl_fac)
+        self.gdf_line.geometry = self.gdf_line.apply(lambda x: x.geometry.simplify(x.cs * simpl_fac), axis=1)
         #  two ways of segmentize, in the original line, or at the buffers,
         # is better in the original to make it symmetrical
         self.gdf_line.geometry = self.gdf_line.apply(lambda x: x.geometry.segmentize(x.cs), axis=1)
         for i in self.gdf_line.index:
+            cs_line = self.gdf_line.loc[i, 'cs']
             off_pos = self.gdf_line.loc[i, "geometry"].offset_curve(
-                cs_thick * self.cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
+                cs_thick * cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
             off_neg = self.gdf_line.loc[i, "geometry"].offset_curve(
-                -cs_thick * self.cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
-
+                -cs_thick * cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
+            
+            #save the offset geometry on the original line gdf
+            self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_pos_{i}', off_pos, self.gdf_line.loc[i, 'cs']]
+            self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_neg_{i}', off_neg, self.gdf_line.loc[i, 'cs']]
+            if any((self.gdf_line.geom_type == 'MultiLineString') & (self.gdf_line.layer.str.contains(f'_{i}'))):
+                # workaround for geos bug that creates multilinestring sometimes
+                # Make the multilinestring a linesting
+                # this split it in two linestrings, but how to merge it into one linestring?
+                # self.gdf_line.loc[self.gdf_line.geom_type=='MultiLineString'].explode()
+                self.gdf_line = merge_many_multilinestring_into_one_linestring(self.gdf_line)
+                # reassign the merged linestring to the original line
+                off_pos = self.gdf_line.loc[self.gdf_line.layer == f'off_pos_{i}', 'geometry'].values[0]
+                off_neg = self.gdf_line.loc[self.gdf_line.layer == f'off_neg_{i}', 'geometry'].values[0]
+            
+            
             # get nodes of buffer to assign them to the mesh iteratively
             off_pos_xy = list(zip(off_pos.xy[0], off_pos.xy[1]))
             off_neg_xy = list(zip(off_neg.xy[0], off_neg.xy[1]))
 
             p_ind_pos = []
             for xy in off_pos_xy:  # to avoid repeated points?
-                ind = geo.addPoint(xy[0], xy[1], 0, self.cs_line)
+                ind = geo.addPoint(xy[0], xy[1], 0, cs_line)
                 p_ind_pos.append(ind)
             
             p_ind_neg = []
             for xy in off_neg_xy:
-                ind = geo.addPoint(xy[0], xy[1], 0, self.cs_line)
+                ind = geo.addPoint(xy[0], xy[1], 0, cs_line)
                 p_ind_neg.append(ind)
             # define lines
             l_ind_pos = []
@@ -578,8 +607,8 @@ class LineGeometryHandler:
     
             gmsh.model.mesh.setAlgorithm(2, ind_s_buff, 8) #frontal delunay quads
             #save the offset geometry on the original line gdf
-            self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_pos_{i}', off_pos, self.gdf_line.loc[i, 'cs']]
-            self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_neg_{i}', off_neg, self.gdf_line.loc[i, 'cs']]
+            # self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_pos_{i}', off_pos, self.gdf_line.loc[i, 'cs']]
+            # self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_neg_{i}', off_neg, self.gdf_line.loc[i, 'cs']]
             # self.ind_s_buff = ind_s_buff
             # self.c_ind_buf = c_ind_buf
             return self.c_ind_buf#ind_s_buff, c_ind_buf
@@ -629,7 +658,7 @@ class PointGeometryHandler:
         p_ind = []
         for i in self.gdf_point.index:
             point = self.gdf_point.loc[i]
-            ind = geo.addPoint(point.x, point.y, 0, self.gdf_point.loc[i, 'cs'])# TODO check
+            ind = geo.addPoint(point.geometry.x, point.geometry.y, 0, self.gdf_point.loc[i, 'cs'])# TODO check
             self.gdf_point.loc[i, 'p_ind'] = ind
             p_ind.append(ind)
         if df_coord:
@@ -758,6 +787,6 @@ if __name__ == "__main__":
 
     #TODO make a check for surface geometries intersecting, in that case, ask the user
     # to fix it
-
+    #TODO get mesh quality metrics
 
 
