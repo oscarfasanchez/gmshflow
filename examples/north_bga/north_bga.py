@@ -25,15 +25,18 @@ obs = obs[obs['DEPTH_MEA'] > 0]
 faults = gpd.read_file(os.path.join(wdshp, 'Fallas_V2_EditPau.shp'))
 #load Gallery
 gal = gpd.read_file(os.path.join(wdshp, 'Alineamiento_Galeria.shp'))
+#load barrier
+bar = gpd.read_file(os.path.join(wdshp, 'barrier.shp'))
 
 # Create the mesh
 
 # Define cell_size in each area
-cs_dom = 200.0
-cs_riv = 50.0
-cs_crk = 50.0
+cs_dom = 250.0
+cs_riv = 250.0
+cs_crk = 150.0
 cs_obs = 10.0
-cs_fault = 10.0
+cs_fault = 80.0
+cs_barrier = 10
 cs_gal = 3
 
 # Add cell size column
@@ -42,6 +45,10 @@ crks['cs'] = cs_crk
 obs['cs'] = cs_obs
 faults['cs'] = cs_fault
 gal['cs'] = cs_gal
+bar['cs'] = cs_barrier
+
+# set cs in crks=20 if its less than 500 meters from gal
+crks.loc[crks.distance(gal.geometry[0]) < 300, 'cs'] = 50
 
 # Initialize GmshModel and GmshMeshDomain
 gmsh_model = gmshflow.GmshModel("north_bga_gmsh")
@@ -58,15 +65,21 @@ riv_handler = gmshflow.PolyGeometryHandler()
 riv_handler.set_gpd_poly(riv)
 
 
-# # Add creek line geometry
-# crk_handler = gmshflow.LineGeometryHandler()
-# crk_handler.set_gpd_line(crks)
-# crk_handler.create_line_from_line()
+# Add creek line geometry
+crk_handler = gmshflow.LineGeometryHandler()
+crk_handler.set_gpd_line(crks)
+crk_handler.create_line_from_line()
 
-# # Add fault line geometry
-# fault_handler = gmshflow.LineGeometryHandler()
-# fault_handler.set_gpd_line(faults)
-# fault_handler.create_line_from_line()
+#add barrier line geometry
+
+bar_handler = gmshflow.LineGeometryHandler()
+bar_handler.set_gpd_line(bar)
+bar_handler.create_surfacegrid_from_buffer_line(cs_thick=1)
+
+# Add fault line geometry
+fault_handler = gmshflow.LineGeometryHandler()
+fault_handler.set_gpd_line(faults)
+fault_handler.create_line_from_line()
 
 # Add gallery line geometry, and create a surface
 gal_handler = gmshflow.LineGeometryHandler()
@@ -81,25 +94,26 @@ gal_handler.create_surfacegrid_from_buffer_line(cs_thick=2)
 
 # # Convert to points for threshold fields
 gdf_riv_coord = riv_handler.convert_to_points_for_threshold_fields()
-# gdf_crk_coord = crk_handler.convert_to_points_for_threshold_fields()
-# gdf_fault_coord = fault_handler.convert_to_points_for_threshold_fields()
-# gdf_gal_coord = gal_handler.convert_to_points_for_threshold_fields()
+gdf_crk_coord = crk_handler.convert_to_points_for_threshold_fields()
+gdf_fault_coord = fault_handler.convert_to_points_for_threshold_fields()
+gdf_gal_coord = gal_handler.convert_to_points_for_threshold_fields()
 
 
 # # Create exponential field
 # gdf_coords = pd.concat([gdf_obs_coord, gdf_riv_coord, gdf_crk_coord, gdf_fault_coord, gdf_gal_coord])
+df_coords = pd.concat([gdf_riv_coord, gdf_gal_coord, gdf_crk_coord, gdf_fault_coord])
 # mesh_domain.create_exponential_field(gdf_coords, fac=1.1)
-mesh_domain.create_exponential_field(gdf_riv_coord, fac=1.1)
+mesh_domain.create_exponential_field(df_coords, fac=1.1)
 # # Set exponential field as background mesh
 mesh_domain.set_field()
 
 # # Deactivate the mesh size from the geometry points
-# mesh_domain.set_mesh_size_from_geometries(use_boundaries=True, use_points=False)
+mesh_domain.set_mesh_size_from_geometries(use_boundaries=True, use_points=False)
 
 # Create domain surface
 
 #need to add internal loops,then we can create the domain surface
-mesh_domain.add_internal_loops(gal_handler.c_ind_buf)
+mesh_domain.add_internal_loops(gal_handler.c_ind_buf+bar_handler.c_ind_buf)
 
 ind_s_dom = mesh_domain.create_domain_surface()
 
