@@ -240,7 +240,8 @@ class GmshMeshDomain:
         gmsh.model.geo.synchronize()
         return self.ind_s_dom
 
-    def export_to_voronoi(self, ws, name:str, surface_ids:list, export_modflow=False, int_org_dom=True):
+    def export_to_voronoi(self, ws, name:str, surface_ids:list, export_modflow=False, int_org_dom=True,
+                          min_cell_overlap=0.5):
                         
         surf_tags = surface_ids
         # check if the domain surface id is included in the list of surfaces
@@ -268,7 +269,11 @@ class GmshMeshDomain:
         #clip the voronoi polygons to keep the extent reasonable, and not distorting the cell centers too much in the boundary
         voro_gpd = voro_gpd.clip(self.shp_dom.buffer(self.cs_dom / 3, join_style='mitre'))
         if int_org_dom:
-            voro_gpd = voro_gpd.loc[voro_gpd.intersects(self.gdf_dom.geometry[0])]
+            voro_gpd = gpd.GeoDataFrame(geometry=voro_gpd.loc[voro_gpd.intersects(self.gdf_dom.geometry[0])], crs=self.gdf_dom.crs)
+            voro_gpd_clip= voro_gpd.clip(self.gdf_dom.geometry[0]).geometry
+            voro_gpd['per_area'] = voro_gpd_clip.area/voro_gpd.area
+            voro_gpd = voro_gpd.loc[voro_gpd['per_area'] >= min_cell_overlap]
+            #filter below threshol
         #export the voronoi polygons to a shapefile
         voro_gpd.to_file(os.path.join(ws, f'{name}.shp'))# TODO maybe using by default the mesh name
         # trian_p_gpd.to_file(os.path.join(ws, f'{name}_points.shp'))
