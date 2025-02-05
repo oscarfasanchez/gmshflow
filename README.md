@@ -17,7 +17,7 @@ Entities are built in a bottom-up manner using its Boundary Representation (BRep
 first points, then lines(made of points), curves/loops (made of lines) and surfaces(made of curves)
 Where each entity possess a unique tag
 
-by default the mesh size is defined from points and from boundaries
+by default the mesh size is defined from points and from boundaries.
 The cell sizes are assigned on points, the points inherit the cell size to the lines, and so on.
 Then the mesh inherits the cell size from the points that were used to define the boundaries(loop) of the surfaces.
 
@@ -25,8 +25,9 @@ Other entities can print their cell size directly into the surface mesh by expli
 the surface, this will force the mesh to the shape of the entity and will fix the maximum cell size.
 The definition of the cell size in the surfaces comes from the interpolation between the aforementioned features.
 
-The interpolation can cause over refinement, then its recommended to use fields with the target mesh size, this package
-has functions to create those fields easily. In any case unless explicitly stated, the maximum cell size, will be calculated using the minimum values set by all the previous methods.
+The interpolation can cause over-refinement, so it's recommended to deactivate the interpolation and use fields with the target mesh size.
+This package has functions to create those fields easily.
+In any case unless explicitly stated, the maximum cell size, will be calculated using the minimum values set by all the previous methods.
 
 
 
