@@ -74,6 +74,8 @@ class GmshMeshDomain:
         self.ind_min_field = None # index of the minimum field
         self.loop_list_surface_dom = [] # list of internal loops to define the surface of the domain
         self.ind_s_dom = None # index of the domain surface
+        self.ind_embed_lines = []
+        self.ind_embed_points = []
         
 
 
@@ -241,7 +243,7 @@ class GmshMeshDomain:
         return self.ind_s_dom
 
     def export_to_voronoi(self, ws, name:str, surface_ids:list, export_modflow=False, int_org_dom=True,
-                          min_cell_overlap=0.5):
+                          min_cell_overlap=0.5, triangle_vert_export=False):
                         
         surf_tags = surface_ids
         # check if the domain surface id is included in the list of surfaces
@@ -257,6 +259,14 @@ class GmshMeshDomain:
         for i in surf_tags:
             _, nodeCoords1, _ = gmsh.model.mesh.getNodes(2, i, includeBoundary=True)
             nodeCoords = np.concatenate((nodeCoords, nodeCoords1))
+        if self.ind_embed_points !=[]:
+            for i in self.ind_embed_points:
+                _, nodeCoords1, _ = gmsh.model.mesh.getNodes(0, i, includeBoundary=True)
+                nodeCoords = np.concatenate((nodeCoords, nodeCoords1))
+        if self.ind_embed_lines !=[]:
+            for i in self.ind_embed_lines:
+                _, nodeCoords1, _ = gmsh.model.mesh.getNodes(1, i, includeBoundary=True)
+                nodeCoords = np.concatenate((nodeCoords, nodeCoords1))
         #organize the coordinates in an array more suitable 
         triang_node_coords = nodeCoords.reshape(len(nodeCoords) // 3, 3)
         triang_node_coords = [[x[0], x[1]] for x in triang_node_coords]
@@ -265,6 +275,8 @@ class GmshMeshDomain:
         #create the geopandas dataframe with the coordinates to use the geopandas voronoi function
         triang_points = [Point(i) for i in triang_node_coords]
         trian_p_gpd = gpd.GeoDataFrame(geometry=triang_points, crs=self.gdf_dom.crs)
+        if triangle_vert_export:
+            trian_p_gpd.to_file(os.path.join(ws, f'{name}_points.shp'))
         voro_gpd = trian_p_gpd.voronoi_polygons(tolerance=1e-3)
         #clip the voronoi polygons to keep the extent reasonable, and not distorting the cell centers too much in the boundary
         voro_gpd = voro_gpd.clip(self.shp_dom.buffer(self.cs_dom / 3, join_style='mitre'))
@@ -296,7 +308,8 @@ class GmshMeshDomain:
             print('Warning: the domain surface was used as the target surface')
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.embed(line_dim, id_line_list, surface_dim, surface_id)
-        pass
+        self.ind_embed_lines += id_line_list
+        
 
     def add_embedded_points(self, id_point_list:list, surface_id:int==None):
         point_dim=0
@@ -306,6 +319,7 @@ class GmshMeshDomain:
             print('Warning: the domain surface was used as the target surface')
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.embed(point_dim, id_point_list, surface_dim, surface_id)
+        self.ind_embed_points += id_point_list
 
 
 
@@ -474,8 +488,9 @@ class LineGeometryHandler:
         # check it is a line dataframe
         assert all((gdf_line.geom_type == 'LineString')|(gdf_line.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
         #check that it has a column called cs or cs_line is not None
-        
-            
+        #TODO simplify keepting topology through the package topojson
+        print('Warning: the line geometries will be simplified without keeping topology, check the results')
+          
         assert 'cs' in gdf_line.columns or self.cs_line is not None, 'The geodataframe must have a cell size column or cs_line must be defined'
         if any(gdf_line.geom_type == 'MultiLineString'):
             self.gdf_line = gdf_line.explode().reset_index()
@@ -637,7 +652,7 @@ class LineGeometryHandler:
         gdf_coord = gdf_coord.loc[idx]
         # add points to gmsh
         gdf_coord['id_gmsh'] = gdf_coord.apply(
-            lambda x: geo.addPoint(x.x, x.y, 0, x.cs), axis=1)
+            lambda x: geo.addPoint(x.x, x.y, 0, x.cs), axis=1).astype(int)
         self.gf_coord = gdf_coord
         return gdf_coord
 
