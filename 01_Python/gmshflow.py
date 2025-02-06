@@ -51,6 +51,44 @@ class GmshModel:
 
     def run_gui(self):
         gmsh.fltk.run()
+        
+    def get_triangular_quality(self):
+        
+        #Get the  follwowing quality measures of the element in the mesh: "minDetJac" and "maxDetJac"
+        # for the adaptively computed minimal and maximal Jacobian determinant,
+        # "minSJ" for the sampled minimal scaled jacobien, "minSICN" for the sampled
+        # minimal signed inverted condition number, "minSIGE" for the sampled signed
+        # inverted gradient error, "gamma" for the ratio of the inscribed to
+        # circumcribed sphere radius, "innerRadius" for the inner radius,
+        # "outerRadius" for the outerRadius, "minIsotropy" for the minimum isotropy
+        # measure, "angleShape" for the angle shape measure, "minEdge" for the
+        # minimum straight edge length, "maxEdge" for the maximum straight edge
+        # length.
+        _, etags, _= gmsh.model.mesh.getElements(dim=2)
+        # Get the following quality measures of the element in the mesh
+        qualities = {
+            "minSICN": gmsh.model.mesh.getElementQualities(etags[0], "minSICN"),  # minimal signed inverted condition number
+            "minDetJac": gmsh.model.mesh.getElementQualities(etags[0], "minDetJac"),  # minimal Jacobian determinant
+            "maxDetJac": gmsh.model.mesh.getElementQualities(etags[0], "maxDetJac"),  # maximal Jacobian determinant
+            "minSJ": gmsh.model.mesh.getElementQualities(etags[0], "minSJ"),  # minimal scaled Jacobian
+            "minSIGE": gmsh.model.mesh.getElementQualities(etags[0], "minSIGE"),  # minimal signed inverted gradient error
+            "gamma": gmsh.model.mesh.getElementQualities(etags[0], "gamma"),  # ratio of the inscribed to circumcribed sphere radius
+            "innerRadius": gmsh.model.mesh.getElementQualities(etags[0], "innerRadius"),  # inner radius
+            "outerRadius": gmsh.model.mesh.getElementQualities(etags[0], "outerRadius"),  # outer radius
+            "minIsotropy": gmsh.model.mesh.getElementQualities(etags[0], "minIsotropy"),  # minimum isotropy measure
+            "angleShape": gmsh.model.mesh.getElementQualities(etags[0], "angleShape"),  # angle shape measure
+            "minEdge": gmsh.model.mesh.getElementQualities(etags[0], "minEdge"),  # minimum straight edge length
+            "maxEdge": gmsh.model.mesh.getElementQualities(etags[0], "maxEdge")  # maximum straight edge length
+        }
+
+        # Save everything on a dataframe
+        df_qualities = pd.DataFrame(qualities)
+        return df_qualities
+        
+
+
+        
+        
 # TODO check if its suitable to include the following functions in the class
 #  set_field, set_mesh_size_from_geometries, add_internal_loop, create_domain_surface, export_to_voronoi
 #  add_embedded_lines, add_embedded_points, create_domain_loop_from_poly, create_exponential_field, create_linear_threshold_field

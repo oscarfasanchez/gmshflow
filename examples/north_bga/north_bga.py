@@ -122,6 +122,12 @@ print('Generating the mesh...')
 gmsh_model.generate_mesh()
 print('Mesh ready')
 
+#get some quality stats of the triangular mesh
+df_quality = gmsh_model.get_triangular_quality()
+#get gamma( ratio of the inscribed to circumcribed sphere/circle radius)
+df_quality.gamma.plot.hist(density=True)
+print('min gamma is equal to: ', df_quality.gamma.min())
+
 # Run GUI 
 gmsh_model.run_gui()
 
