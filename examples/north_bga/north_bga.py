@@ -93,10 +93,10 @@ gal_handler.create_surfacegrid_from_buffer_line(cs_thick=2)
 # gdf_obs_coord = obs_handler.gdf_coord
 
 # # Convert to points for threshold fields
-gdf_riv_coord = riv_handler.convert_to_points_for_threshold_fields()
-gdf_crk_coord = crk_handler.convert_to_points_for_threshold_fields()
-gdf_fault_coord = fault_handler.convert_to_points_for_threshold_fields()
-gdf_gal_coord = gal_handler.convert_to_points_for_threshold_fields()
+gdf_riv_coord = riv_handler.convert_to_points_for_size_fields()
+gdf_crk_coord = crk_handler.convert_to_points_for_size_fields()
+gdf_fault_coord = fault_handler.convert_to_points_for_size_fields()
+gdf_gal_coord = gal_handler.convert_to_points_for_size_fields()
 
 
 # # Create exponential field

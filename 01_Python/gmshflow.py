@@ -508,7 +508,7 @@ class PolyGeometryHandler:
         print('finished: create_surfacegrid_from_buffer_poly')
         return self.gdf_poly, c_ind_buf_pos, c_ind_buf_neg, ind_s_buff, ind_s_mid
 
-    def convert_to_points_for_threshold_fields(self) :
+    def convert_to_points_for_size_fields(self) :
         # Implementation of conversion to points for threshold fields
         assert 'cs' in self.gdf_poly.columns, 'gdf must have cell size column(cs)'
         gdf2 = self.gdf_poly.copy()
@@ -705,7 +705,7 @@ class LineGeometryHandler:
 
 
 
-    def convert_to_points_for_threshold_fields(self):
+    def convert_to_points_for_size_fields(self):
         #TODO fix name, and include this function inside create line and poly etc
         # Implementation of conversion to points for threshold fields
         assert 'cs' in self.gdf_line.columns, 'gdf must have cell size column(cs)'
@@ -832,10 +832,10 @@ if __name__ == "__main__":
 
     
     # Convert to points for threshold fields
-    gdf_drn_coord = riv.convert_to_points_for_threshold_fields()
-    gdf_pit_coord = pit.convert_to_points_for_threshold_fields()
-    gdf_fault_coord = flt.convert_to_points_for_threshold_fields()
-    gdf_bar_coord = bar.convert_to_points_for_threshold_fields()
+    gdf_drn_coord = riv.convert_to_points_for_size_fields()
+    gdf_pit_coord = pit.convert_to_points_for_size_fields()
+    gdf_fault_coord = flt.convert_to_points_for_size_fields()
+    gdf_bar_coord = bar.convert_to_points_for_size_fields()
 
     
     # Create exponential field
