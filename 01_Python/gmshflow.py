@@ -15,6 +15,7 @@ import gmsh
 geo = gmsh.model.geo
 import shapely
 from shapely.geometry import Point
+import topojson as tp
 
 def merge_many_multilinestring_into_one_linestring(gdf):
     # This function merges many multilinestrings into one linestring
@@ -29,6 +30,15 @@ def merge_many_multilinestring_into_one_linestring(gdf):
     assert all(gdf.geom_type == 'LineString'), 'The geodataframe must have only linestrings, then the algorithm didnt work'
 
     return gdf
+
+def simplify_keeping_topology(gdf, cs , plot=False):
+    topo = tp.Topology(gdf.to_crs(gdf.crs), prequantize=False)
+    simple = topo.toposimplify(cs/2).to_gdf()
+    if plot:
+        simple.plot()
+    gdf.geometry = simple.geometry
+    return gdf
+    
 
 class GmshModel:
     def __init__(self, name):
@@ -370,7 +380,7 @@ class PolyGeometryHandler:
         #TODO include the following attributes inside self.gdf_poly
         self.s_ind = []
 
-    def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame):
+    def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame, keep_topology=False):
         # check it is a polygon dataframe
         assert all(gdf_poly.geom_type == 'Polygon'), 'All geometries must be of type Polygon'
         #check that it has a column called cs or cs_poly is not None
@@ -378,11 +388,22 @@ class PolyGeometryHandler:
         self.gdf_poly = gdf_poly
         #simplify the geometries
         if self.cs_poly is not None:
-            self.gdf_poly.geometry = self.gdf_poly.geometry.simplify(self.cs_poly/2)
+            if keep_topology:
+                self.gdf_poly = simplify_keeping_topology(self.gdf_poly, self.cs_poly)
+            else:    
+                self.gdf_poly.geometry = self.gdf_poly.geometry.simplify(self.cs_poly/2)
             self.gdf_poly['cs'] = self.cs_poly
         else:
-            self.gdf_poly.geometry = self.gdf_poly.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
-
+            if keep_topology:
+                #get the biggest cell size to simplify the geometries
+                print('Warning: the topology will be kept, but the geometries will be simplified'
+                      'to the biggest cell size, even if some elements have smaller cell sizes'
+                        ', this wont affect the final mesh size necessarily')
+                self.cs_poly = self.cs_poly.max()
+                self.gdf_poly = simplify_keeping_topology(self.gdf_poly, self.cs_poly)
+            else:
+                self.gdf_poly.geometry = self.gdf_poly.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
+            
         
         
 
@@ -522,7 +543,7 @@ class LineGeometryHandler:
         self.l_ind_list = []
 
 
-    def set_gpd_line(self, gdf_line: gpd.GeoDataFrame):
+    def set_gpd_line(self, gdf_line: gpd.GeoDataFrame, keep_topology=False):
         # check it is a line dataframe
         assert all((gdf_line.geom_type == 'LineString')|(gdf_line.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
         #check that it has a column called cs or cs_line is not None
@@ -536,10 +557,21 @@ class LineGeometryHandler:
             self.gdf_line = gdf_line
         #simplify the geometries
         if self.cs_line is not None:
-            self.gdf_line.geometry = self.gdf_line.geometry.simplify(self.cs_line/2)
-            self.gdf_line['cs'] = self.cs_line
+            if keep_topology:
+                self.gdf_line = simplify_keeping_topology(self.gdf_line, self.cs_line)
+            else:
+                self.gdf_line.geometry = self.gdf_line.geometry.simplify(self.cs_line/2)
+            self.gdf_line['cs'] = self.cs_line 
         else:
-            self.gdf_line.geometry = self.gdf_line.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
+            if keep_topology:
+                #get the biggest cell size to simplify the geometries
+                print('Warning: the topology will be kept, but the geometries will be simplified'
+                      ' to the biggest cell size, even if some elements have smaller cell sizes'
+                        ', this wont affect the final mesh size necessarily')
+                self.cs_line = self.cs_line.max()
+                self.gdf_line = simplify_keeping_topology(self.gdf_line, self.cs_line)
+            else:
+                self.gdf_line.geometry = self.gdf_line.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
 
     def create_line_from_line(self):
         # This function creates a gmsh point and line from a line geometry
