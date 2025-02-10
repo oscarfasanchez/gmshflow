@@ -18,8 +18,27 @@ from shapely.geometry import Point
 import topojson as tp
 
 def merge_many_multilinestring_into_one_linestring(gdf):
-    # This function merges many multilinestrings into one linestring
-    # check if the geodataframe has multilinestrings
+    '''
+    Merges multiple MultiLineString geometries in a GeoDataFrame into single LineString geometries.
+
+    Parameters
+    ----------
+    gdf : geopandas.GeoDataFrame
+        A GeoDataFrame containing MultiLineString geometries.
+
+    Raises
+    ------
+    AssertionError
+        If the input GeoDataFrame does not contain any
+         MultiLineString geometries or if the merging process fails.
+       
+    Returns
+    -------
+    gdf : geopandas.GeoDataFrame
+        A GeoDataFrame with merged LineString geometries.
+
+    '''
+
     assert any(gdf.geom_type == 'MultiLineString'), 'The geodataframe must have multilinestrings'
     # explode the multilinestrings
     gdf2 = gdf.explode().reset_index()
@@ -32,6 +51,24 @@ def merge_many_multilinestring_into_one_linestring(gdf):
     return gdf
 
 def simplify_keeping_topology(gdf, cs , plot=False):
+    '''
+    Simplifies the geometries in a GeoDataFrame while keeping the topology of the original geometries.
+
+    Parameters
+    ----------
+    gdf : geopandas.GeoDataFrame
+        A GeoDataFrame containing the geometries to be simplified.
+    cs : float
+        The cell size to be used for simplifying the geometries.
+    plot : bool, optional
+        If True, the simplified geometries are plotted. The default is False.
+    
+    Returns
+    -------
+    gdf : geopandas.GeoDataFrame
+        A GeoDataFrame with the simplified geometries.
+    
+    '''
     topo = tp.Topology(gdf.to_crs(gdf.crs), prequantize=False)
     simple = topo.toposimplify(cs/2).to_gdf()
     if plot:
@@ -41,39 +78,82 @@ def simplify_keeping_topology(gdf, cs , plot=False):
     
 
 class GmshModel:
+    '''
+    Class to create a GMSH instance for meshing.
+
+    Parameters
+    ----------
+    name : str
+        Name of the GMSH model. 
+
+    '''
     def __init__(self, name):
+        '''
+        Initializes the GMSH model.
+        
+        Parameters 
+        ----------
+        name : str
+            Name of the GMSH model.
+        '''
         gmsh.initialize()
         self.name = name
         gmsh.model.add(name)
         # self.geo = gmsh.model.geo
 
     def finalize(self):
+        '''
+        Finalizes the GMSH model.
+        '''
         gmsh.finalize()
 
     def synchronize(self):
+        '''
+        Synchronizes the GMSH model.
+        this is required before some operations
+        '''
         gmsh.model.geo.synchronize()
 
     def generate_mesh(self, dimension=2):
+        ''' 
+        Generates the mesh for the GMSH model.'''
         gmsh.model.mesh.generate(dimension)
 
     def write(self, filename):
+        '''
+        Writes the GMSH model to a gmsh file.
+        '''
         gmsh.write(filename)
 
     def run_gui(self):
+        '''
+        Runs the GMSH GUI
+        this allow to see triangular mesh results and using the 
+        GUI to modify the meshm or to export it to other formats.
+        Also allows to see the mesh quality of the elements in a detailed way.
+        '''
         gmsh.fltk.run()
         
     def get_triangular_quality(self):
+        """
+        Get the  follwowing quality measures of the element in the mesh: "minDetJac" and "maxDetJac"
+        for the adaptively computed minimal and maximal Jacobian determinant,
+        "minSJ" for the sampled minimal scaled jacobien, "minSICN" for the sampled
+        minimal signed inverted condition number, "minSIGE" for the sampled signed
+        inverted gradient error, "gamma" for the ratio of the inscribed to
+        circumcribed sphere radius, "innerRadius" for the inner radius,
+        "outerRadius" for the outerRadius, "minIsotropy" for the minimum isotropy
+        measure, "angleShape" for the angle shape measure, "minEdge" for the
+        minimum straight edge length, "maxEdge" for the maximum straight edge
+        length.
+
+        Returns
+        -------
+        df_qualities : Dataframe
+            Datframe with the mesh quality of every triangle element in the mesh.
+
+        """
         
-        #Get the  follwowing quality measures of the element in the mesh: "minDetJac" and "maxDetJac"
-        # for the adaptively computed minimal and maximal Jacobian determinant,
-        # "minSJ" for the sampled minimal scaled jacobien, "minSICN" for the sampled
-        # minimal signed inverted condition number, "minSIGE" for the sampled signed
-        # inverted gradient error, "gamma" for the ratio of the inscribed to
-        # circumcribed sphere radius, "innerRadius" for the inner radius,
-        # "outerRadius" for the outerRadius, "minIsotropy" for the minimum isotropy
-        # measure, "angleShape" for the angle shape measure, "minEdge" for the
-        # minimum straight edge length, "maxEdge" for the maximum straight edge
-        # length.
         _, etags, _= gmsh.model.mesh.getElements(dim=2)
         # Get the following quality measures of the element in the mesh
         qualities = {
@@ -110,6 +190,20 @@ class GmshModel:
 
 #define the class
 class GmshMeshDomain:
+    ''' 
+    Class to create a domain for meshing the domain in GMSH.
+    
+    Parameters
+    ----------
+    name : str
+        Name of the domain.
+    gdf_dom : geopandas.GeoDataFrame
+        Geodataframe with the domain geometry.
+    cs_dom : float, optional
+        Cell size of the domain. The default is None, because in some case the cell size is defined
+        in a field called 'cs'.
+    
+    '''
     #define the constructor using the domain, the domain is a 
     #geopandas dataframe that contains a column with the cell size called 'cs' 
     def __init__(self, name, gdf_dom:gpd.GeoDataFrame, cs_dom:float = None):
@@ -128,9 +222,29 @@ class GmshMeshDomain:
 
 
     def add_domain_polygon_geometry(self, gdf_dom_geom):
-        # This function adds extra geometries to the domain and adds them to the list of gdfs.
-        #  The function returns a list of geopandas dataframes with the domain geometries.
-        #check that gdf_dom is a geopandas dataframe polygon of one elementand that it has a column called cs
+        '''
+        This function adds extra geometries to the domain and adds them to the list of gdfs.
+        The function returns a list of geopandas dataframes with the domain geometries.
+        check that gdf_dom is a geopandas dataframe polygon of one elementand that it has a column called cs
+
+        Parameters
+        ----------
+        gdf_dom_geom : Geodataframe
+            Geometry of the domain, only one feature
+
+        Raises
+        ------
+        TypeError
+            in case a geodataframe is not provided.
+        ValueError
+            in case a polygon is not provided.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
         if not isinstance(gdf_dom_geom, gpd.GeoDataFrame):
             raise TypeError('The geometry must be a geopandas dataframe')
         if not all(gdf_dom_geom.geom_type == 'Polygon'):
@@ -143,12 +257,24 @@ class GmshMeshDomain:
     def prepare_mesh_domain(self, mesh_area=1,
                                   gdf_list=[], min_overlap=1,
                                   meshing_buff_mult=1):
-               
-        # This function prepares the domain for meshing by either creating a buffer around the domain, simplifying
-        # the domain, or both. The buffer is also affected for additional geopandas geometries that are provided and
-        # maybe extend the domain. The function returns a geopandas dataframe with the domain geometry.
-        # mesh_area: 0=convex hull, 1=oriented envelope, 2=bounding box
+        '''
+        This function prepares the domain for meshing by either creating a buffer around the domain, simplifying
+        the domain, or both. The buffer is also affected for additional geopandas geometries that are provided to
+        extend the domain. The function returns a geopandas dataframe with the domain geometry.
         
+        Parameters
+        ----------
+        mesh_area : int, optional
+            0=convex hull, 1=oriented envelope, 2=bounding box. The default is 1.
+        gdf_list : list, optional
+            List of geopandas dataframes with the geometries to add to the domain shape. The default is [].
+        min_overlap : float, optional
+            Minimum overlap between the domain and the additional geometries. The default is 1.
+        meshing_buff_mult : float, optional
+            Multiplier for the meshing buffer. The default is 1.
+        '''
+               
+               
         shp_dom = self.gdf_dom.geometry[0].simplify(self.cs_dom/2)
         if self.gdf_list != []:
             for gdf in gdf_list:
@@ -180,6 +306,15 @@ class GmshMeshDomain:
         self.shp_dom = shp_dom
         
     def create_domain_loop_from_poly(self):
+        '''
+        This function creates a loop from the polygon geometry of the domain.
+        The function returns the index of the curve loop of the outer domain.
+        
+        Returns
+        -------
+        c_ind : int
+            Index of the curve loop of the outer domain.
+        '''
         
         assert self.shp_dom is not None, 'The domain shape is not defined'
         # lets add the outer points of the domain, later the lines, and finally area
@@ -201,31 +336,66 @@ class GmshMeshDomain:
         return c_ind
 
     def create_exponential_field(self, df_points, fac=1.1):
+        '''
+        This function creates an exponential field for the domain.
+        
+        Parameters
+        ----------
+        df_points : DataFrame
+            Dataframe with the points to be added to the minimum cell size general field.
+        fac : float, optional
+            Factor that define rate of cell size growing for the exponential field.
+            The default is 1.1.
+            
+        Returns
+        -------
+        ind_min_field : int
+            Index of the minimum field.
+        ind_exp_field : list
+            List of the index of the exponential fields for each cell size.'''
         # Implementation of exponential field creation
         assert fac > 1, 'fac must be higher than 1, usually between 1.1 and 1.3'
         assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'
         gmsh.model.geo.synchronize()
-        ind_thres_field = []
+        ind_exp_field = []
         #define a distance and exponential field for each cell size 
         for cs in df_points.cs.unique():
             df_points_cs = df_points.loc[df_points.cs==cs]
             ind_dist_field = gmsh.model.mesh.field.add("Distance")  # TODO check to get var
             gmsh.model.mesh.field.setNumbers(
                 ind_dist_field, "PointsList", df_points_cs['id_gmsh'].to_list())  # [:1]
-            ind_thres_field.append(gmsh.model.mesh.field.add("MathEval"))  # TODO check to get var
+            ind_exp_field.append(gmsh.model.mesh.field.add("MathEval"))  # TODO check to get var
             d = ind_dist_field
             #define the function
             gmsh.model.mesh.field.setString(
-                ind_thres_field[-1],
+                ind_exp_field[-1],
                 "F", f'{cs}*{fac}^(Log(1+F{d}*2*Log({fac})/{cs})/Log({fac}))')
         # get the minimum cell size field from the intersection of all the fields
         ind_min_field = gmsh.model.mesh.field.add("Min")
         # set it a s gmsh field
-        gmsh.model.mesh.field.setNumbers(ind_min_field, "FieldsList", ind_thres_field)
+        gmsh.model.mesh.field.setNumbers(ind_min_field, "FieldsList", ind_exp_field)
         self.ind_min_field = ind_min_field
-        return ind_min_field, ind_thres_field
+        return ind_min_field, ind_exp_field
 
     def create_linear_threshold_field(self, df_points, fac=1.2):
+        '''
+        This function creates a linear field for the domain.
+        
+        Parameters
+        ----------
+        df_points : DataFrame
+            Dataframe with the points to be added to the minimum cell size general field.
+        fac : float, optional
+            Factor that define rate of cell size growing for the linear field.
+            The default is 1.2.
+        
+        Returns
+        -------
+        ind_min_field : int
+            Index of the minimum field.
+        ind_thres_field : list
+            List of the index of the threshold fields for each cell size.'''
+
         # Implementation of linear field creation
         assert fac > 1, 'fac must be higher than 1, usually between 1.1 and 1.3'
         assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'
@@ -251,13 +421,20 @@ class GmshMeshDomain:
         # return ind_min_field, ind_thres_field
     
     def set_field(self):
+        '''
+        This function sets the minimum field as the background mesh field.
+        '''
         # Implementation of field setting
         assert self.ind_min_field is not None, 'The minimum field is not defined'
         gmsh.model.mesh.field.setAsBackgroundMesh(self.ind_min_field)
         gmsh.model.geo.synchronize()
 
     def set_mesh_size_from_geometries(self, use_boundaries=False, use_points=False):
-        #by default in gmsh the mesh size is set from the geometry and linearly interpolated
+        '''
+        This function defines if the mesh size from the geometries, or only field sizes
+        because by default in gmsh the mesh size is set from the geometry and linearly
+        interpolated.
+        '''
         if use_boundaries:
             # Extend computation of mesh element sizes from the boundaries into the interior
             gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 1)
@@ -272,6 +449,14 @@ class GmshMeshDomain:
         # gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
 
     def add_internal_loops(self, loop_ids:list):
+        '''
+        This function adds internal loops to the domain surface.
+
+        Parameters
+        ----------
+        loop_ids : list
+            List of the internal loop ids to be added to the domain surface
+        '''
         # Implementation of internal loop addition
         for loop_id in loop_ids:
             #check loop_id is not in the list
@@ -281,6 +466,9 @@ class GmshMeshDomain:
   
 
     def create_domain_surface(self):
+        '''
+        This function creates the domain surface.
+        '''
         # Implementation of domain surface creation
         assert self.c_ind is not None, 'The domain loop is not defined'
         if self.loop_list_surface_dom is None:
@@ -290,9 +478,29 @@ class GmshMeshDomain:
         gmsh.model.geo.synchronize()
         return self.ind_s_dom
 
-    def export_to_voronoi(self, ws, name:str, surface_ids:list, export_modflow=False, int_org_dom=True,
+    def export_to_voronoi(self, ws, name:str, surface_ids:list, int_org_dom=True,
                           min_cell_overlap=0.5, triangle_vert_export=False):
-                        
+        '''
+        This function exports the domain mesh to a voronoi shapefile.
+        
+        Parameters
+        ----------
+        ws : str
+            Path to the working directory.
+        name : str
+            Name of the voronoi shapefile.
+        surface_ids : list
+            List of the surface ids that you want to include in the final mesh exported.
+        int_org_dom : bool, optional
+            If True, the function filters the voronoi polygons that intersect the domain.
+            The default is True.
+        min_cell_overlap : float, optional
+            Minimum overlap between the voronoi cells and the domain to be
+            included in the final export when int_org_dom is True . The default is 0.5.
+        triangle_vert_export : bool, optional
+            If True, the function exports the triangle vertices to a shapefile. The default is False.
+
+        '''                
         surf_tags = surface_ids
         # check if the domain surface id is included in the list of surfaces
         if self.ind_s_dom not in surf_tags:
@@ -337,18 +545,22 @@ class GmshMeshDomain:
         #export the voronoi polygons to a shapefile
         voro_gpd.to_file(os.path.join(ws, f'{name}.shp'))# TODO maybe using by default the mesh name
         # trian_p_gpd.to_file(os.path.join(ws, f'{name}_points.shp'))
-        if export_modflow:
-            import flopy
-            verts, iverts = flopy.utils.cvfdutil.shapefile_to_cvfd(
-                os.path.join(ws, f'{name}.shp'), verbose=True, duplicate_decimals=3, skip_hanging_node_check=True)
-            gridprops_dic = flopy.utils.cvfdutil.get_disv_gridprops(verts, iverts, xcyc=None)
-            return voro_gpd, gridprops_dic
-        else:
-            return voro_gpd
+
+        return voro_gpd
         
     
 
-    def add_embedded_lines(self, id_line_list:list, surface_id:int==None):
+    def add_embedded_lines(self, id_line_list:list, surface_id:int=None):
+        '''
+        This function embeds lines in the domain surface.
+        this is used when the cell centers are required to be aligned with the lines
+        Parameters
+        ----------
+        id_line_list : list
+            List of the line ids to be embedded in the domain surface.
+        surface_id : int, optional
+            Id of the surface where the lines will be embedded. The default is None.
+        '''
         line_dim=1
         surface_dim=2
         if surface_id is None:
@@ -359,7 +571,18 @@ class GmshMeshDomain:
         self.ind_embed_lines += id_line_list
         
 
-    def add_embedded_points(self, id_point_list:list, surface_id:int==None):
+    def add_embedded_points(self, id_point_list:list, surface_id:int=None):
+        '''
+        This function embeds points in the domain surface.
+
+        Parameters
+        ----------
+        id_point_list : list
+            List of the point ids to be embedded in the domain surface.
+        surface_id : int, optional
+            Id of the surface where the points will be embedded. The default is None.
+
+        '''
         point_dim=0
         surface_dim=2
         if surface_id is None:
@@ -373,6 +596,14 @@ class GmshMeshDomain:
 
 
 class PolyGeometryHandler:
+    '''
+    Class to handle polygon geometries for meshing in GMSH.
+    
+    Parameters
+    ----------
+    cs_poly : float, optional
+        Cell size of the polygon geometry. The default is None.
+    '''
     def __init__(self, cs_poly=None):
         self.gdf_poly = None
         self.cs_poly = cs_poly
@@ -381,6 +612,17 @@ class PolyGeometryHandler:
         self.s_ind = []
 
     def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame, keep_topology=False):
+        '''
+        This function sets the geodataframe polygon for meshing.
+        
+        Parameters
+        ----------
+        gdf_poly : geopandas.GeoDataFrame
+            Geodataframe with the polygon geometry.
+        keep_topology : bool, optional
+            If True, the topology of the polygon geometry is kept, but individual cell sizes wont we used
+            for the simplifications. The default is False.
+            '''
         # check it is a polygon dataframe
         assert all(gdf_poly.geom_type == 'Polygon'), 'All geometries must be of type Polygon'
         #check that it has a column called cs or cs_poly is not None
@@ -409,6 +651,19 @@ class PolyGeometryHandler:
 
     
     def create_loop_from_poly(self, def_surf=False):
+        '''
+        This function creates a loop from a polygon geometry.
+        
+        Parameters
+        ----------
+        def_surf : bool, optional
+            If True, the function defines the surface of the polygon. The default is False.
+        
+        Returns
+        -------
+        c_ind : list
+            List of the index of the curve loops of the polygon geometry.
+            '''
         # This function creates a loop from a polygon geometry
         assert self.gdf_poly is not None, 'The polygon geometry is not defined'
         # lets get the points of the polygons, then the lines, and finally the area
@@ -445,6 +700,36 @@ class PolyGeometryHandler:
         
 
     def create_surfacegrid_from_buffer_poly(self, cs_thick=1, simpl_fac=1.5, def_surf=True):
+        '''
+        This function creates a surface grid from a buffer polygon.
+        this could be desired to have voronoi meshes that follow more accurately
+        the original geometry(because normally voronoi elements will have their
+        centers on the original gometry instead of their boundaries),
+        but it is not recommended for complex geometries.
+
+        Parameters
+        ----------
+        cs_thick : int, optional
+            Offset of the buffer polygon. The default is 1.
+        simpl_fac : float, optional
+            Simplification factor for the buffer polygon. The default is 1.5.
+        def_surf : bool, optional   
+            If True, the function defines the surface of the buffer polygon. The default is True.
+        
+        Returns
+        -------
+        gdf_poly : geopandas.GeoDataFrame
+            Geodataframe with the buffer polygon geometries.
+        c_ind_buf_pos : list
+            List of the index of the curve loops of the positive buffer polygon.
+        c_ind_buf_neg : list
+            List of the index of the curve loops of the negative buffer polygon.
+        ind_s_buff : list
+            List of the index of the buffer polygon surface.
+        ind_s_mid : list
+            List of the index of the buffer polygon mid surface.
+
+        '''
         # TODO check changes in buffer to avoid small angles,
         # and probably different meshing algorithm?
         print('starting: create_surfacegrid_from_buffer_poly')
@@ -508,7 +793,15 @@ class PolyGeometryHandler:
         print('finished: create_surfacegrid_from_buffer_poly')
         return self.gdf_poly, c_ind_buf_pos, c_ind_buf_neg, ind_s_buff, ind_s_mid
 
-    def convert_to_points_for_size_fields(self) :
+    def convert_to_points_for_size_fields(self):
+        '''
+        This function converts the polygon geometry to points for cell size fields.
+        
+        Returns
+        -------
+        gdf_coord : geopandas.GeoDataFrame
+            Geodataframe with the point geometry.
+        '''
         # Implementation of conversion to points for threshold fields
         assert 'cs' in self.gdf_poly.columns, 'gdf must have cell size column(cs)'
         gdf2 = self.gdf_poly.copy()
@@ -533,6 +826,14 @@ class PolyGeometryHandler:
     #TODO implement the following functions: delete...curves, delete...surfaces
 
 class LineGeometryHandler:
+    '''
+    Class to handle line geometries for meshing in GMSH.
+    
+    Parameters
+    ----------
+    cs_line : float, optional
+        Cell size of the line geometry. The default is None.
+    '''
     def __init__(self, cs_line=None):
         self.gdf_line = None
         self.cs_line = cs_line
@@ -544,6 +845,18 @@ class LineGeometryHandler:
 
 
     def set_gpd_line(self, gdf_line: gpd.GeoDataFrame, keep_topology=False):
+        '''
+        This function sets the geodataframe line for meshing.
+        
+        Parameters
+        ----------
+        gdf_line : geopandas.GeoDataFrame
+            Geodataframe with the line geometry.
+        keep_topology : bool, optional
+            If True, the topology of the line geometry is kept, but individual cell sizes wont we used
+            for the simplifications. The default is False.
+        
+        '''
         # check it is a line dataframe
         assert all((gdf_line.geom_type == 'LineString')|(gdf_line.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
         #check that it has a column called cs or cs_line is not None
@@ -574,6 +887,13 @@ class LineGeometryHandler:
                 self.gdf_line.geometry = self.gdf_line.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
 
     def create_line_from_line(self):
+        '''
+        This function creates a line from a line geometry.
+        
+        Returns
+        -------
+        l_ind_list : list
+            List of the indices of the lines of the line geometry.'''
         # This function creates a gmsh point and line from a line geometry
         assert self.gdf_line is not None, 'The line geometry is not defined'
         # lets get the points of the polygons, then the lines, and finally the area
@@ -596,6 +916,31 @@ class LineGeometryHandler:
 
 
     def create_surfacegrid_from_buffer_line(self, cs_thick:int = 1, simpl_fac=1.5, def_surf=True):
+        '''
+        This function creates a surface grid from a buffer line.
+        this could be used to create a clean sharp boundary on the voronoi mesh with the line shape
+        (cs_thick = 1) or to create a quasi-rectangular mesh around the line shape (cs_thick = 2)
+        Parameters
+        ----------
+        cs_thick : int, optional
+            Offset of the buffer line. The default is 1.
+        simpl_fac : float, optional
+            Simplification factor for the buffer line. The default is 1.5.
+        def_surf : bool, optional
+            If True, the function defines the surface of the buffer line. The default is True.
+        Internal Returns
+        -------
+        gdf_line : geopandas.GeoDataFrame
+            Geodataframe with the buffer line geometries.
+        ind_s_buff : list
+            List of the index of the buffer line surface.
+        
+        Returns
+        -------
+        c_ind_buf : list
+            List of the index of the curve loops of the buffer line.
+
+        '''
         # lets simplify the barrier to ease the quad meshing
         # Failed attempt to smooth angles, better just enforce 1 or 2 to avoid 
         # misuse of it with poor meshes
@@ -706,6 +1051,14 @@ class LineGeometryHandler:
 
 
     def convert_to_points_for_size_fields(self):
+        '''
+        This function converts the line geometry to points for cell size fields.
+        
+        Returns
+        -------
+        gdf_coord : geopandas.GeoDataFrame
+            Geodataframe with the point geometry.
+        '''
         #TODO fix name, and include this function inside create line and poly etc
         # Implementation of conversion to points for threshold fields
         assert 'cs' in self.gdf_line.columns, 'gdf must have cell size column(cs)'
@@ -727,12 +1080,22 @@ class LineGeometryHandler:
         return gdf_coord
 
 class PointGeometryHandler:
+    '''
+    Class to handle point geometries for meshing in GMSH.
+    
+    Parameters
+    ----------
+    cs_point : float, optional
+        Cell size of the point geometry. The default is None.
+    '''
     def __init__(self, cs_point=None):
         self.gdf_point = None
         self.cs_point = cs_point
         self.gdf_coord = None
 
     def set_gdf_point(self, gdf_point: gpd.GeoDataFrame):
+        '''
+        This function sets the geodataframe point for meshing.'''
         # check it is a point dataframe
         assert all(gdf_point.geom_type == 'Point'), 'All geometries must be of type Point'
         #check that it has a column called cs or cs_point is not None
@@ -743,6 +1106,14 @@ class PointGeometryHandler:
             self.gdf_point['cs'] = self.cs_point
         
     def create_point_from_point(self, df_coord=False):
+        '''
+        This function creates a point from a point geometry.
+        
+        Parameters
+        ----------
+        p_ind : list
+            List of the index of the points of the point geometry.
+            '''
         # This function creates a gmsh point from a point geometry
         assert self.gdf_point is not None, 'The point geometry is not defined'
         # lets get the points of the polygons, then the lines, and finally the area
