@@ -133,7 +133,7 @@ gmsh_model.run_gui()
 
 # Export to Voronoi
 surf_tags = [ind_s_dom]+gal_handler.ind_s_buff  # Add other surface tags if needed
-voro = mesh_domain.export_to_voronoi(wdshp, "gdf_voro", surf_tags, export_modflow=True)
+voro = mesh_domain.export_to_voronoi(wdshp, "gdf_voro", surf_tags)
 
 # Write mesh to file
 gmsh_model.write("north_bga_gmsh.msh")
