@@ -1124,7 +1124,10 @@ class PointGeometryHandler:
             self.gdf_point.loc[i, 'p_ind'] = ind
             p_ind.append(ind)
         if df_coord:
-            self.gdf_coord = self.gdf_point.get_coordinates().reset_index(names='ind')
+            self.gdf_coord = self.gdf_point
+            self.gdf_coord = pd.concat(
+                [self.gdf_coord, self.gdf_point.get_coordinates()], axis = 1) 
+            self.gdf_coord['id_gmsh'] = self.gdf_coord['p_ind'].astype(int)
         return p_ind
 
 
