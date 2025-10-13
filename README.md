@@ -110,4 +110,4 @@ gmsh_model.finalize()
 
 ## License
 
-This project is licensed under the XXX License.
+This project is licensed under the MIT License.
