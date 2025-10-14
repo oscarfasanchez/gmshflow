@@ -321,16 +321,16 @@ class GmshMeshDomain:
         shp_dom_xy = list(zip(self.shp_dom.exterior.xy[0], self.shp_dom.exterior.xy[1]))
         p_ind = []
         for xy in shp_dom_xy[:-1]:  # to avoid repeated points
-            ind = geo.addPoint(xy[0], xy[1], 0, self.cs_dom)
+            ind =  gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.cs_dom)
             p_ind.append(ind)
         # p_ind = [x for x in range(1, i+1)]
         l_ind = []
         for i in range(len(p_ind)):
-            ind = geo.addLine(p_ind[i-1], p_ind[i])
+            ind = gmsh.model.geo.addLine(p_ind[i-1], p_ind[i])
             l_ind.append(ind)
         
         c_ind = []
-        ind = geo.addCurveLoop(l_ind, 1)
+        ind = gmsh.model.geo.addCurveLoop(l_ind, 1)
         c_ind.append(ind)
         self.c_ind = c_ind
         return c_ind
@@ -474,7 +474,7 @@ class GmshMeshDomain:
         if self.loop_list_surface_dom is None:
             print('Warning: no internal loops defined')
         gmsh.model.geo.synchronize()
-        self.ind_s_dom = geo.addPlaneSurface(self.c_ind+self.loop_list_surface_dom)
+        self.ind_s_dom =  gmsh.model.geo.addPlaneSurface(self.c_ind+self.loop_list_surface_dom)
         gmsh.model.geo.synchronize()
         return self.ind_s_dom
 
@@ -672,7 +672,7 @@ class PolyGeometryHandler:
             poly_xy = list(zip(poly.exterior.xy[0], poly.exterior.xy[1]))
             p_ind = []
             for xy in poly_xy[:-1]:  # to avoid repeated points
-                ind = geo.addPoint(xy[0], xy[1], 0, self.gdf_poly.loc[i, 'cs'])# TODO check
+                ind =  gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.gdf_poly.loc[i, 'cs'])# TODO check
                 p_ind.append(ind)
             
             l_ind = []
@@ -681,12 +681,12 @@ class PolyGeometryHandler:
                 l_ind.append(ind)
 
             c_ind = []
-            ind = geo.addCurveLoop(l_ind)
+            ind = gmsh.model.geo.addCurveLoop(l_ind)
             c_ind.append(ind)
                
 
             if def_surf:
-                ind_s = geo.addPlaneSurface(c_ind)
+                ind_s = gmsh.model.geo.addPlaneSurface(c_ind)
                 self.s_ind.append(ind_s)
                 self.gdf_poly.loc[i, 's_ind'] = ind_s
             # add the indices to a new column in the dataframe
@@ -750,44 +750,44 @@ class PolyGeometryHandler:
 
             p_ind_pos = []
             for xy in off_pos_xy[:-1]:  # to avoid repeated points
-                ind = geo.addPoint(xy[0], xy[1], 0, self.cs_poly)
+                ind =  gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.cs_poly)
                 p_ind_pos.append(ind)
 
             p_ind_neg = []
             for xy in off_neg_xy[:-1]:  # to avoid repeated points
-                ind = geo.addPoint(xy[0], xy[1], 0, self.cs_poly)
+                ind =  gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.cs_poly)
                 p_ind_neg.append(ind)
 
             # define lines
             l_ind_pos = []
             for j in range(len(p_ind_pos)):
-                ind = geo.addLine(p_ind_pos[j-1], p_ind_pos[j])
+                ind = gmsh.model.geo.addLine(p_ind_pos[j-1], p_ind_pos[j])
                 l_ind_pos.append(ind)
 
             l_ind_neg = []
             for i in range(len(p_ind_neg)):
-                ind = geo.addLine(p_ind_neg[j-1], p_ind_neg[j])
+                ind = gmsh.model.geo.addLine(p_ind_neg[i-1], p_ind_neg[i])
                 l_ind_neg.append(ind)
 
             # define loops
             loop_list_neg = l_ind_neg
             loop_list_pos = l_ind_pos
 
-            c_ind_buf_neg.append(geo.addCurveLoop(loop_list_neg))
-            c_ind_buf_pos.append(geo.addCurveLoop(loop_list_pos))
-            self.c_ind.append([c_ind_buf_neg, c_ind_buf_pos])  
+            c_ind_buf_neg.append(gmsh.model.geo.addCurveLoop(loop_list_neg))
+            c_ind_buf_pos.append(gmsh.model.geo.addCurveLoop(loop_list_pos))
+            self.c_ind.append([c_ind_buf_neg, c_ind_buf_pos])
             print('Loop list created')
             if def_surf:
                 # define surfaces
-                ind_s_buff.append(geo.addPlaneSurface([c_ind_buf_pos[-1], c_ind_buf_neg[-1]]))
-                ind_s_mid.append(geo.addPlaneSurface([c_ind_buf_neg[-1]]))
+                ind_s_buff.append(gmsh.model.geo.addPlaneSurface([c_ind_buf_pos[-1], c_ind_buf_neg[-1]]))
+                ind_s_mid.append(gmsh.model.geo.addPlaneSurface([c_ind_buf_neg[-1]]))
                 self.s_ind.append([ind_s_mid, ind_s_buff])
 
-                geo.synchronize()
+                gmsh.model.geo.synchronize()
                 # set quads for buffer area
-                geo.mesh.setRecombine(2, ind_s_buff[-1])
-                geo.mesh.setAlgorithm(2, ind_s_buff[-1], 8)
-                geo.mesh.setAlgorithm(2, ind_s_mid[-1], 6)
+                gmsh.model.mesh.setRecombine(2, ind_s_buff[-1])
+                gmsh.model.mesh.setAlgorithm(2, ind_s_buff[-1], 8)
+                gmsh.model.mesh.setAlgorithm(2, ind_s_mid[-1], 6)
                 self.gdf_poly.loc[self.gdf_poly.shape[0], ['layer', 'geometry']] = [f'off_pos{i}', off_pos]
                 self.gdf_poly.loc[self.gdf_poly.shape[0], ['layer', 'geometry']] = [f'off_neg{i}', off_neg]
         print('finished: create_surfacegrid_from_buffer_poly')
@@ -817,7 +817,7 @@ class PolyGeometryHandler:
         gdf_coord = gdf_coord.loc[idx]
         # add points to gmsh
         gdf_coord['id_gmsh'] = gdf_coord.apply(
-            lambda x: geo.addPoint(x.x, x.y, 0, x.cs), axis=1)
+            lambda x: gmsh.model.geo.addPoint(x.x, x.y, 0, x.cs), axis=1)
         self.gf_coord = gdf_coord
         return gdf_coord
 
@@ -902,12 +902,12 @@ class LineGeometryHandler:
             line_xy = list(zip(line.xy[0], line.xy[1]))
             p_ind = []
             for xy in line_xy[:]:  # to avoid repeated points
-                ind = geo.addPoint(xy[0], xy[1], 0, self.gdf_line.loc[i, 'cs'])# TODO check
+                ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.gdf_line.loc[i, 'cs'])# TODO check
                 p_ind.append(ind)
             
             l_ind = []
             for j in range(len(p_ind)-1):
-                ind = geo.addLine(p_ind[j], p_ind[j+1])
+                ind = gmsh.model.geo.addLine(p_ind[j], p_ind[j+1])
                 l_ind.append(ind)
             self.l_ind_list += l_ind
         # self.gdf _line['p_ind'] = p_ind
@@ -982,31 +982,31 @@ class LineGeometryHandler:
 
             p_ind_pos = []
             for xy in off_pos_xy:  # to avoid repeated points?
-                ind = geo.addPoint(xy[0], xy[1], 0, cs_line)
+                ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, cs_line)
                 p_ind_pos.append(ind)
             
             p_ind_neg = []
             for xy in off_neg_xy:
-                ind = geo.addPoint(xy[0], xy[1], 0, cs_line)
+                ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, cs_line)
                 p_ind_neg.append(ind)
             # define lines
             l_ind_pos = []
             for j in range(len(p_ind_pos)-1):
-                ind = geo.addLine(p_ind_pos[j], p_ind_pos[j+1])
+                ind = gmsh.model.geo.addLine(p_ind_pos[j], p_ind_pos[j+1])
                 l_ind_pos.append(ind)
 
             l_ind_neg = []
             for j in range(len(p_ind_neg)-1):
-                ind = geo.addLine(p_ind_neg[j], p_ind_neg[j+1])
+                ind = gmsh.model.geo.addLine(p_ind_neg[j], p_ind_neg[j+1])
                 l_ind_neg.append(ind)
-            
-            l_strt = geo.addLine(p_ind_pos[0], p_ind_neg[0])
-            l_end = geo.addLine(p_ind_neg[-1], p_ind_pos[-1])
+
+            l_strt = gmsh.model.geo.addLine(p_ind_pos[0], p_ind_neg[0])
+            l_end = gmsh.model.geo.addLine(p_ind_neg[-1], p_ind_pos[-1])
             # define loops, carefully, in the right order
             loop_list = l_ind_neg+ [l_end]+ list(np.array(l_ind_pos[::-1])*-1)+ [l_strt]
-            c_ind_buf = geo.addCurveLoop(loop_list)
+            c_ind_buf = gmsh.model.geo.addCurveLoop(loop_list)
             # define surfaces
-            ind_s_buff = geo.addPlaneSurface([c_ind_buf])
+            ind_s_buff = gmsh.model.geo.addPlaneSurface([c_ind_buf])
             # TODO check if I should restart the variable when the function is called, or create another function to clean
             self.ind_s_buff.append(ind_s_buff)# should I standarize the names using inheritance? s_ind?
             self.c_ind_buf.append(c_ind_buf)
@@ -1075,7 +1075,7 @@ class LineGeometryHandler:
         gdf_coord = gdf_coord.loc[idx]
         # add points to gmsh
         gdf_coord['id_gmsh'] = gdf_coord.apply(
-            lambda x: geo.addPoint(x.x, x.y, 0, x.cs), axis=1).astype(int)
+            lambda x:  gmsh.model.geo.addPoint(x.x, x.y, 0, x.cs), axis=1).astype(int)
         self.gf_coord = gdf_coord
         return gdf_coord
 
@@ -1120,7 +1120,7 @@ class PointGeometryHandler:
         p_ind = []
         for i in self.gdf_point.index:
             point = self.gdf_point.loc[i]
-            ind = geo.addPoint(point.geometry.x, point.geometry.y, 0, self.gdf_point.loc[i, 'cs'])# TODO check
+            ind = gmsh.model.geo.addPoint(point.geometry.x, point.geometry.y, 0, self.gdf_point.loc[i, 'cs'])# TODO check
             self.gdf_point.loc[i, 'p_ind'] = ind
             p_ind.append(ind)
         if df_coord:

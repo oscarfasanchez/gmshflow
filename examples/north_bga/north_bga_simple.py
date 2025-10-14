@@ -2,14 +2,17 @@
 import geopandas as gpd
 import numpy as np
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join('..','..' ,'01_python')))
 import gmshflow
 import flopy
 from flopy.discretization import VertexGrid
+from pathlib import Path
 
 # set the path to the shapefiles
-wdshp = os.path.join('.', 'data')
+# set the path to the shapefiles relative to this script
+SCRIPT_DIR = Path(__file__).resolve().parent
+wdshp = SCRIPT_DIR / "data"
+if not wdshp.exists():
+    raise FileNotFoundError(f"Data folder not found: {wdshp}")
 
 # Load the shapefiles
 #load domain
