@@ -56,7 +56,6 @@ If `conda` or `python` are not recognized in PowerShell, use the "Anaconda Promp
 Notes:
 - Heavy deps (geopandas, shapely, pyproj, etc.) are managed by Conda via `src/env.yml`.
 - `pyproject.toml` intentionally omits dependencies to avoid pip trying to build geospatial wheels on Windows.
-- After the editable install, remove any `sys.path.append(...)` hacks from examples.
 
 ## Usage
 
