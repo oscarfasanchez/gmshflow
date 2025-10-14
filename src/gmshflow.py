@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import os
 import gmsh
-geo = gmsh.model.geo
+
 import shapely
 from shapely.geometry import Point
 import topojson as tp

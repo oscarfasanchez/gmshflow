@@ -1,0 +1,28 @@
+
+ [build-system]
+ requires = [
+   "setuptools>=68",
+   "wheel"
+ ]
+ build-backend = "setuptools.build_meta"
+
+ [project]
+ name = "gmshflow"
+ version = "0.1"
+ description = "a wrapper for robust voronoi meshing in modflow 6"
+ readme = "README.md"
+ requires-python = ">=3.9"
+ authors = [
+   { name = "Oscar Sanchez", email = "oscarfasanchez@gmail.com" }
+ ]
+ license = { text = "MIT" }
+ # Intentionally omit heavy geospatial dependencies here; manage them via Conda (see README).
+
+ [project.urls]
+ Homepage = "https://github.com/oscarfasanchez/gmshflow"
+
+[tool.setuptools]
+py-modules = ["gmshflow"]
+
+[tool.setuptools.package-dir]
+"" = "src"

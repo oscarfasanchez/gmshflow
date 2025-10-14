@@ -34,12 +34,29 @@ In any case unless explicitly stated, the maximum cell size, will be calculated 
 
 ## Installation
 
-To install the required packages, use the following command:
+Recommended on Windows: use Conda for geospatial dependencies, then perform an editable install.
 
-```bash
-pip install ...???...
+1) Create/activate the Conda environment (once):
+
+```powershell
+# From the repo root
+conda env create -f src/env.yml
+conda activate gmshflow
 ```
-nah, Probably would be more like copy paste, we'll see
+
+2) Editable install so `import gmshflow` works from anywhere in this env:
+
+```powershell
+# From the repo root
+pip install -e .
+```
+
+If `conda` or `python` are not recognized in PowerShell, use the "Anaconda Prompt" (installed by Anaconda/Miniconda) or ensure they are on your PATH. You can also run inside VS Code after selecting the Conda interpreter.
+
+Notes:
+- Heavy deps (geopandas, shapely, pyproj, etc.) are managed by Conda via `src/env.yml`.
+- `pyproject.toml` intentionally omits dependencies to avoid pip trying to build geospatial wheels on Windows.
+- After the editable install, remove any `sys.path.append(...)` hacks from examples.
 
 ## Usage
 
@@ -105,6 +122,14 @@ gdf_voro = mesh_domain.export_to_voronoi(wdshp, shp_mesh_name, surf_tags)
 
 # Finalize Gmsh
 gmsh_model.finalize()
+```
+
+### Quick verification
+
+After installation, you can quickly verify the module is importable:
+
+```powershell
+python -c "import gmshflow; print(getattr(gmshflow, '__name__', 'ok'))"
 ```
 
 
