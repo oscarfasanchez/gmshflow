@@ -17,6 +17,80 @@ import shapely
 from shapely.geometry import Point
 import topojson as tp
 
+def calculate_cvfd_quality(gdf_voro):
+    '''
+    Calculates the CVFD quality of a voronoi mesh.
+    especifically the orthogonality of the connected faces and
+    Skewness of the face-midpoint alignment
+
+    Parameters
+    ----------
+    gdf_voro : geopandas.GeoDataFrame
+        A GeoDataFrame containing the Voronoi mesh geometries.
+
+
+    Returns
+    -------
+    cvfd_quality : geopandas.GeoDataFrame
+        The geodataframe with the connecting lines of each pair of cells that has the CVFD quality metrics.
+    '''
+    # lets calculate the centroids of each voronoi polygon
+    gdf_voro_temp = gdf_voro.copy()
+    gdf_voro_temp['centroid'] = gdf_voro_temp.geometry.centroid
+
+    #lets get the delaunay triangulation of the centroids
+    connection_gdf = gdf_voro_temp[['centroid']].delaunay_triangles(tolerance=1e-3, only_edges=True)
+
+    #lets filter the lines that connect two centroids of polygons that are not touching
+    connection_gdf['index'] = connection_gdf.geometry.apply(lambda x: gdf_voro_temp.index[gdf_voro_temp.geometry == x].tolist()[0])
+    connection_gdf = connection_gdf[connection_gdf['index'].notnull()]
+
+    #lets get the index of the voronoi polygons that are connected for each line
+    connection_gdf = connection_gdf.explode().reset_index()
+    connection_gdf['voronoi_index_1'] = connection_gdf['index'].apply(lambda x: gdf_voro_temp.index[gdf_voro_temp.geometry == x].tolist()[0])
+    connection_gdf['voronoi_index_2'] = connection_gdf['index'].apply(lambda x: gdf_voro_temp.index[gdf_voro_temp.geometry == x].tolist()[0])
+    
+    #now lets get the shared edge between the two voronoi polygons
+    connection_gdf['shared_edge'] = connection_gdf.apply(lambda x: gdf_voro_temp.geometry[x['voronoi_index_1']].intersection(gdf_voro_temp.geometry[x['voronoi_index_2']]), axis=1)
+
+    #now lets calculate the quality metrics
+    #first the angle between the connecting line and the shared edge
+    #probably the best way is to get the angle between the two lines by calculating the dot product
+    def calculate_angle(line1, line2):
+        #get the coordinates of the lines
+        x1, y1 = line1.xy
+        x2, y2 = line2.xy
+        #get the direction vectors of the lines
+        v1 = np.array([x1[1] - x1[0], y1[1] - y1[0]])
+        v2 = np.array([x2[1] - x2[0], y2[1] - y2[0]])
+        #calculate the angle between the two vectors
+        cos_theta = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+        angle = np.arccos(cos_theta)
+        return np.degrees(angle)
+    connection_gdf['angle'] = connection_gdf.apply(lambda x: calculate_angle(x.geometry, x.shared_edge), axis=1)
+
+    #now lets calculate the skewness of the connecting line with the shared edge, ideally it should be 0.5 if its perfectly aligned
+    #for this we will get the intersection point between the connecting line and the shared edge
+    # in case there is no intersection point, we will project the shared edge to the connecting line to get
+    def calculate_skewness(line1, line2):
+        intersection = line1.intersection(line2)
+        if intersection.is_empty:
+            #project the shared edge to the connecting line
+            projected_point = line1.interpolate(line1.project(line2.centroid))
+        else:
+            projected_point = intersection
+        #get the length of the connecting line
+        length_line1 = line1.length
+        #get the length from the start of the connecting line to the projected point
+        length_to_projected = line1.project(projected_point)
+        #calculate the skewness
+        skewness = length_to_projected / length_line1
+        return skewness
+    connection_gdf['skewness'] = connection_gdf.apply(lambda x: calculate_skewness(x.geometry, x.shared_edge), axis=1)
+    
+    cvfd_quality = connection_gdf[['voronoi_index_1', 'voronoi_index_2', 'angle', 'skewness']]
+    return cvfd_quality
+
 def merge_many_multilinestring_into_one_linestring(gdf):
     '''
     Merges multiple MultiLineString geometries in a GeoDataFrame into single LineString geometries.
