@@ -39,7 +39,7 @@ def calculate_cvfd_quality(gdf_voro):
     gdf_voro_temp['centroid'] = gdf_voro_temp.geometry.centroid
 
     #lets get the delaunay triangulation of the centroids
-    connection_gdf = gdf_voro_temp[['centroid']].delaunay_triangles(tolerance=1e-3, only_edges=True)
+    connection_gdf = gdf_voro_temp['centroid'].delaunay_triangles(tolerance=1e-3, only_edges=True)
 
     #lets filter the lines that connect two centroids of polygons that are not touching
     connection_gdf['index'] = connection_gdf.geometry.apply(lambda x: gdf_voro_temp.index[gdf_voro_temp.geometry == x].tolist()[0])
@@ -1204,7 +1204,15 @@ class PointGeometryHandler:
             self.gdf_coord['id_gmsh'] = self.gdf_coord['p_ind'].astype(int)
         return p_ind
 
-
+def test_cvfd_qual():
+    '''
+    This function tests the calculate_cvfd_quality function.
+    '''
+    voro = gpd.read_file(os.path.join('.', 'examples', 'north_bga','data' ,'gdf_voro.shp'))
+    voro_qual = calculate_cvfd_quality(voro)
+    print(voro_qual.describe())
 
 if __name__ == "__main__":
     print('This is a test')
+    test_cvfd_qual()
+
