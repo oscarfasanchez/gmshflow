@@ -4,12 +4,18 @@ import os
 from typing import List, Optional, Tuple
 
 import geopandas as gpd
-import gmsh
 import numpy as np
 import pandas as pd
 import shapely
 import shapely.ops
 from shapely.geometry import Point
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 
 class GmshMeshDomain:
@@ -55,6 +61,18 @@ class GmshMeshDomain:
         self.ind_s_dom = None  # index of the domain surface
         self.ind_embed_lines = []
         self.ind_embed_points = []
+
+    def _ensure_gmsh_available(self) -> None:
+        """Ensure GMSH is available for operations that require it.
+        
+        Raises:
+            ImportError: If GMSH is not installed or not available.
+        """
+        if not HAS_GMSH:
+            raise ImportError(
+                "GMSH is required for this operation but is not installed. "
+                "Please install GMSH using: conda install gmsh"
+            )
 
     def add_domain_polygon_geometry(self, gdf_dom_geom: gpd.GeoDataFrame) -> None:
         """Add additional polygon geometries to extend the domain.
@@ -162,6 +180,7 @@ class GmshMeshDomain:
             >>> loop_indices = domain.create_domain_loop_from_poly()
             >>> print(f"Created curve loop {loop_indices[0]}")
         """
+        self._ensure_gmsh_available()
 
         if self.shp_dom is None:
             raise RuntimeError(

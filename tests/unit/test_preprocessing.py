@@ -9,6 +9,7 @@ from shapely.geometry import LineString, MultiLineString
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+# Import directly from preprocessing to avoid GMSH import chain
 from gmshflow.utils.preprocessing import (
     merge_many_multilinestring_into_one_linestring,
     simplify_keeping_topology,

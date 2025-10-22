@@ -1,7 +1,13 @@
 """Core GMSH model wrapper for GMSHFlow."""
 
-import gmsh
 import pandas as pd
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 
 class GmshModel:
@@ -44,7 +50,14 @@ class GmshModel:
 
         Raises:
             RuntimeError: If GMSH is already initialized for this model.
+            ImportError: If GMSH is not installed.
         """
+        if not HAS_GMSH:
+            raise ImportError(
+                "GMSH is required but is not installed. "
+                "Please install GMSH using: conda install gmsh"
+            )
+        
         if self._initialized:
             raise RuntimeError(f"GMSH model '{self.name}' is already initialized")
 

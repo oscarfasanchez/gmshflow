@@ -3,8 +3,14 @@
 from typing import List, Optional
 
 import geopandas as gpd
-import gmsh
 import pandas as pd
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 
 class PointGeometryHandler:

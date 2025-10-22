@@ -4,9 +4,15 @@ from statistics import mean
 from typing import Optional
 
 import geopandas as gpd
-import gmsh
 import numpy as np
 from shapely.geometry import Point
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 from ..utils.preprocessing import (
     merge_many_multilinestring_into_one_linestring,

@@ -3,9 +3,15 @@
 from typing import Optional
 
 import geopandas as gpd
-import gmsh
 
 from ..utils.preprocessing import simplify_keeping_topology
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 
 class PolyGeometryHandler:
