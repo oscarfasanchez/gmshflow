@@ -6,10 +6,11 @@ import pandas as pd
 
 
 class GmshModel:
-    """GMSH model wrapper for mesh generation and management.
+    """GMSH model wrapper with automatic resource management.
 
-    This class provides a high-level interface to GMSH functionality,
-    handling model initialization, mesh generation, and output operations.
+    This class provides a high-level interface to GMSH functionality with
+    proper resource management via context manager protocol. GMSH resources
+    are automatically initialized and cleaned up.
 
     Args:
         name: Name identifier for the GMSH model.
@@ -18,35 +19,98 @@ class GmshModel:
         name: The model name used in GMSH.
 
     Example:
-        >>> model = GmshModel("groundwater_mesh")
-        >>> model.generate_mesh(dimension=2)
-        >>> model.write("output.msh")
-        >>> model.finalize()
+        >>> with GmshModel("groundwater_mesh") as model:
+        ...     model.generate_mesh(dimension=2)
+        ...     model.write("output.msh")
+        ...     # Automatic cleanup when exiting context
     """
     def __init__(self, name: str) -> None:
-        """Initialize the GMSH model.
+        """Initialize the GMSH model wrapper.
         
         Args:
             name: Name identifier for the GMSH model.
+            
+        Note:
+            GMSH is not initialized until entering the context manager.
+            Use 'with GmshModel(name) as model:' for proper resource management.
         """
-        gmsh.initialize()
         self.name = name
-        gmsh.model.add(name)
-        # self.geo = gmsh.model.geo
+        self._initialized = False
 
-    def finalize(self) -> None:
-        """Finalize and cleanup the GMSH model.
+    def __enter__(self) -> "GmshModel":
+        """Enter the context manager and initialize GMSH.
         
-        This should be called when done with the model to free resources.
+        Returns:
+            The GmshModel instance for use in the context.
+            
+        Raises:
+            RuntimeError: If GMSH is already initialized for this model.
         """
-        gmsh.finalize()
+        if self._initialized:
+            raise RuntimeError(f"GMSH model '{self.name}' is already initialized")
+            
+        gmsh.initialize()
+        gmsh.model.add(self.name)
+        self._initialized = True
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and cleanup GMSH resources.
+        
+        This ensures GMSH is properly finalized even if an exception occurs
+        during mesh operations.
+        
+        Args:
+            exc_type: Exception type (if any).
+            exc_val: Exception value (if any).
+            exc_tb: Exception traceback (if any).
+        """
+        self.finalize()
+    
+    def finalize(self) -> None:
+        """Finalize and cleanup the GMSH model safely.
+        
+        This method is idempotent and safe to call multiple times.
+        It will only finalize GMSH if it was previously initialized.
+        """
+        if self._initialized:
+            try:
+                gmsh.finalize()
+            except Exception as e:
+                # Log warning but don't raise - cleanup should be robust
+                print(f"Warning: GMSH finalization failed: {e}")
+            finally:
+                self._initialized = False
+    
+    def close(self) -> None:
+        """Close the GMSH model (alias for finalize).
+        
+        Provides a common interface for resource cleanup.
+        """
+        self.finalize()
+
+    def _ensure_initialized(self) -> None:
+        """Ensure GMSH is initialized before operations.
+        
+        Raises:
+            RuntimeError: If GMSH is not initialized (not in context manager).
+        """
+        if not self._initialized:
+            raise RuntimeError(
+                f"GMSH model '{self.name}' is not initialized. "
+                "Use 'with GmshModel(name) as model:' pattern."
+            )
 
     def synchronize(self) -> None:
         """Synchronize the GMSH model geometry.
         
         This is required before certain mesh operations to ensure
         all geometry changes are properly registered.
+        
+        Raises:
+            RuntimeError: If GMSH is not initialized.
         """
+        self._ensure_initialized()
         gmsh.model.geo.synchronize()
 
     def generate_mesh(self, dimension: int = 2) -> None:
@@ -54,7 +118,11 @@ class GmshModel:
         
         Args:
             dimension: Mesh dimension (1=lines, 2=triangles, 3=tetrahedra).
+            
+        Raises:
+            RuntimeError: If GMSH is not initialized.
         """
+        self._ensure_initialized()
         gmsh.model.mesh.generate(dimension)
 
     def write(self, filename: str) -> None:
@@ -62,7 +130,11 @@ class GmshModel:
         
         Args:
             filename: Output filename (typically with .msh extension).
+            
+        Raises:
+            RuntimeError: If GMSH is not initialized.
         """
+        self._ensure_initialized()
         gmsh.write(filename)
 
     def run_gui(self) -> None:
@@ -71,7 +143,11 @@ class GmshModel:
         This allows visualization of triangular mesh results and provides
         GUI tools to modify the mesh or export to other formats. Also
         enables detailed mesh quality analysis.
+        
+        Raises:
+            RuntimeError: If GMSH is not initialized.
         """
+        self._ensure_initialized()
         gmsh.fltk.run()
         
     def get_triangular_quality(self) -> pd.DataFrame:
@@ -92,12 +168,16 @@ class GmshModel:
             - angleShape: Angle shape measure
             - minEdge/maxEdge: Minimum and maximum straight edge lengths
 
+        Raises:
+            RuntimeError: If GMSH is not initialized or no mesh exists.
+
         Example:
-            >>> model = GmshModel("test")
-            >>> model.generate_mesh()
-            >>> quality_df = model.get_triangular_quality()
-            >>> poor_elements = quality_df[quality_df['gamma'] < 0.3]
+            >>> with GmshModel("test") as model:
+            ...     model.generate_mesh()
+            ...     quality_df = model.get_triangular_quality()
+            ...     poor_elements = quality_df[quality_df['gamma'] < 0.3]
         """
+        self._ensure_initialized()
         
         _, etags, _= gmsh.model.mesh.getElements(dim=2)
         # Get the following quality measures of the element in the mesh
