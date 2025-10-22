@@ -70,10 +70,20 @@ class PointGeometryHandler:
         Returns:
             List of GMSH point indices created.
 
+        Raises:
+            ImportError: If GMSH is not installed.
+            RuntimeError: If point geometry is not defined.
+
         Example:
             >>> point_ids = handler.create_point_from_point(df_coord=True)
             >>> print(f"Created {len(point_ids)} GMSH points")
         """
+        if not HAS_GMSH:
+            raise ImportError(
+                "GMSH is required for this operation but is not installed. "
+                "Please install GMSH using: conda install gmsh"
+            )
+
         # This function creates a gmsh point from a point geometry
         if self.gdf_point is None:
             raise RuntimeError('Point geometry is not defined. Call set_gdf_point() first.')

@@ -81,21 +81,28 @@ def test_point_create_point_validation():
 
 def test_point_create_point_with_coord_df():
     """Test creating points with coordinate DataFrame output."""
-    from gmshflow.geometry.point import PointGeometryHandler
+    from gmshflow.geometry.point import HAS_GMSH, PointGeometryHandler
     sys.path.insert(0, str(Path(__file__).parent.parent / "fixtures"))
     from sample_geometries import create_test_points
 
     handler = PointGeometryHandler()
     point_gdf = create_test_points()
 
-    with patch('gmsh.model.geo.addPoint', side_effect=[1, 2, 3, 4]):
+    if not HAS_GMSH:
+        # Without GMSH, test that the method raises appropriate error
         handler.set_gdf_point(point_gdf)
-        point_ids = handler.create_point_from_point(df_coord=True)
+        with pytest.raises(ImportError, match="GMSH is required"):
+            handler.create_point_from_point(df_coord=True)
+    else:
+        # With GMSH, test the normal functionality
+        with patch('gmsh.model.geo.addPoint', side_effect=[1, 2, 3, 4]):
+            handler.set_gdf_point(point_gdf)
+            point_ids = handler.create_point_from_point(df_coord=True)
 
-        assert isinstance(point_ids, list)
-        assert hasattr(handler, 'gdf_coord')
-        assert 'id_gmsh' in handler.gdf_coord.columns
-        assert len(handler.gdf_coord) == len(point_gdf)
+            assert isinstance(point_ids, list)
+            assert hasattr(handler, 'gdf_coord')
+            assert 'id_gmsh' in handler.gdf_coord.columns
+            assert len(handler.gdf_coord) == len(point_gdf)
 
 def test_model_error_cases():
     """Test GmshModel error handling cases."""
@@ -126,26 +133,33 @@ def test_model_finalize_without_init():
     model.finalize()
     model.finalize()
 
-@patch('gmsh.model.mesh.getNodes')
-@patch('gmsh.model.mesh.getElements')
-def test_model_get_triangular_quality_empty_mesh(mock_get_elements, mock_get_nodes):
+def test_model_get_triangular_quality_empty_mesh():
     """Test get_triangular_quality with empty mesh."""
-    from gmshflow.core.model import GmshModel
-
-    # Mock empty mesh
-    mock_get_nodes.return_value = ([], [])
-    mock_get_elements.return_value = ([], [], [])
+    from gmshflow.core.model import HAS_GMSH, GmshModel
 
     model = GmshModel("test_model")
-    model._initialized = True  # Bypass initialization check (correct attribute)
+    model._initialized = True  # Bypass initialization check
 
-    result = model.get_triangular_quality()
+    if not HAS_GMSH:
+        # Without GMSH, the method should raise an error about missing mesh functionality
+        with pytest.raises((AttributeError, ImportError)):
+            model.get_triangular_quality()
+    else:
+        # With GMSH, test the normal functionality
+        with patch('gmsh.model.mesh.getNodes') as mock_get_nodes, \
+             patch('gmsh.model.mesh.getElements') as mock_get_elements:
 
-    # Should return empty DataFrame with correct columns
-    assert len(result) == 0
-    expected_columns = ['minSICN', 'minDetJac', 'maxDetJac', 'minSJ', 'minSIGE', 'gamma',
-                       'innerRadius', 'outerRadius', 'minIsotropy', 'angleShape', 'minEdge', 'maxEdge']
-    assert list(result.columns) == expected_columns
+            # Mock empty mesh
+            mock_get_nodes.return_value = ([], [])
+            mock_get_elements.return_value = ([], [], [])
+
+            result = model.get_triangular_quality()
+
+            # Should return empty DataFrame with correct columns
+            assert len(result) == 0
+            expected_columns = ['minSICN', 'minDetJac', 'maxDetJac', 'minSJ', 'minSIGE', 'gamma',
+                               'innerRadius', 'outerRadius', 'minIsotropy', 'angleShape', 'minEdge', 'maxEdge']
+            assert list(result.columns) == expected_columns
 
 def test_preprocessing_edge_cases():
     """Test preprocessing utility edge cases."""
@@ -179,7 +193,7 @@ def test_preprocessing_simplify_edge_cases():
 
 def test_model_context_manager_validation():
     """Test context manager basic validation without GMSH."""
-    from gmshflow.core.model import GmshModel
+    from gmshflow.core.model import HAS_GMSH, GmshModel
 
     # Test model creation
     model = GmshModel("test_model")
@@ -188,8 +202,13 @@ def test_model_context_manager_validation():
 
     # Test double initialization check
     model._initialized = True
-    with pytest.raises(RuntimeError, match="already initialized"):
-        model.__enter__()
+    if HAS_GMSH:
+        with pytest.raises(RuntimeError, match="already initialized"):
+            model.__enter__()
+    else:
+        # Without GMSH, we should get ImportError first
+        with pytest.raises(ImportError, match="GMSH is required"):
+            model.__enter__()
 
 def test_domain_voronoi_export_edge_cases():
     """Test Voronoi export with edge cases."""

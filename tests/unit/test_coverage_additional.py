@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 def test_line_convert_to_points_functionality():
@@ -174,7 +176,7 @@ def test_point_handler_coordinate_dataframe():
     import geopandas as gpd
     from shapely.geometry import Point
 
-    from gmshflow.geometry.point import PointGeometryHandler
+    from gmshflow.geometry.point import HAS_GMSH, PointGeometryHandler
 
     handler = PointGeometryHandler()
     points = [Point(0, 0), Point(5, 5), Point(10, 0)]
@@ -182,14 +184,19 @@ def test_point_handler_coordinate_dataframe():
 
     handler.set_gdf_point(point_gdf)
 
-    # Mock point creation with coordinate dataframe
-    with patch('gmsh.model.geo.addPoint', side_effect=[1, 2, 3]):
-        point_ids = handler.create_point_from_point(df_coord=True)
+    if not HAS_GMSH:
+        # Without GMSH, test that the method exists and raises appropriate error
+        with pytest.raises(ImportError, match="GMSH is required"):
+            handler.create_point_from_point(df_coord=True)
+    else:
+        # Mock point creation with coordinate dataframe when GMSH is available
+        with patch('gmsh.model.geo.addPoint', side_effect=[1, 2, 3]):
+            point_ids = handler.create_point_from_point(df_coord=True)
 
-        assert isinstance(point_ids, list)
-        assert len(point_ids) == 3
-        assert hasattr(handler, 'gdf_coord')
-        assert 'id_gmsh' in handler.gdf_coord.columns
+            assert isinstance(point_ids, list)
+            assert len(point_ids) == 3
+            assert hasattr(handler, 'gdf_coord')
+            assert 'id_gmsh' in handler.gdf_coord.columns
 
 def test_geometry_simplification_different_tolerances():
     """Test geometry simplification with different tolerance values."""
