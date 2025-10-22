@@ -1,0 +1,78 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        gmsh: [true, false]
+        
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+        mamba-version: "*"
+        channels: conda-forge,defaults
+        channel-priority: true
+        activate-environment: gmshflow-test
+        
+    - name: Install base dependencies
+      shell: bash -l {0}
+      run: |
+        mamba install geopandas shapely pandas numpy topojson
+        pip install -e ".[test]"
+        
+    - name: Install GMSH (conditional)
+      if: matrix.gmsh == true
+      shell: bash -l {0}
+      run: mamba install gmsh
+      
+    - name: Run unit tests (always)
+      shell: bash -l {0}
+      run: pytest tests/unit/ --cov=src/gmshflow --cov-report=xml -v
+      
+    - name: Run integration tests (GMSH only)
+      if: matrix.gmsh == true
+      shell: bash -l {0}
+      run: pytest tests/integration/ -m gmsh --cov-append --cov-report=xml -v
+      
+    - name: Run all tests except GMSH (no GMSH)
+      if: matrix.gmsh == false
+      shell: bash -l {0}
+      run: pytest tests/ -m "not gmsh" --cov=src/gmshflow --cov-report=xml -v
+      
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dev dependencies
+      run: |
+        pip install ruff mypy
+        pip install -e .
+        
+    - name: Run ruff
+      run: ruff check src/ tests/
+      
+    - name: Run mypy
+      run: mypy src/gmshflow --ignore-missing-imports
