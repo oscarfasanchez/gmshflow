@@ -1,6 +1,7 @@
 """Domain mesh creation and management for GMSHFlow."""
 
 import os
+from typing import List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -11,23 +12,37 @@ from shapely.geometry import Point
 
 
 class GmshMeshDomain:
-    ''' 
-    Class to create a domain for meshing the domain in GMSH.
-    
-    Parameters
-    ----------
-    name : str
-        Name of the domain.
-    gdf_dom : geopandas.GeoDataFrame
-        Geodataframe with the domain geometry.
-    cs_dom : float, optional
-        Cell size of the domain. The default is None, because in some case the cell size is defined
-        in a field called 'cs'.
-    
-    '''
-    #define the constructor using the domain, the domain is a 
-    #geopandas dataframe that contains a column with the cell size called 'cs' 
-    def __init__(self, name, gdf_dom: gpd.GeoDataFrame, cs_dom: float = None):
+    """Domain mesh creation and management for GMSH modeling.
+
+    This class handles the creation and configuration of mesh domains in GMSH,
+    including domain geometry preparation, field setup, and mesh export functionality.
+
+    Args:
+        name: Name identifier for the domain.
+        gdf_dom: GeoDataFrame containing the domain geometry (typically polygons).
+        cs_dom: Default cell size for the domain. If None, cell size should be
+            specified in a 'cs' column of the geodataframe.
+
+    Attributes:
+        name: Domain name identifier.
+        cs_dom: Default cell size for meshing.
+        gdf_dom: Domain geometry GeoDataFrame.
+        gdf_list: List of additional geometries to include in domain shape.
+        shp_dom: Final processed domain shape.
+        c_ind: Index of the curve loop for the outer domain.
+        ind_min_field: Index of the minimum field for mesh sizing.
+        loop_list_surface_dom: List of internal loops for domain surface.
+        ind_s_dom: Index of the domain surface.
+        ind_embed_lines: List of embedded line indices.
+        ind_embed_points: List of embedded point indices.
+
+    Example:
+        >>> domain_gdf = gpd.read_file("domain.shp")
+        >>> domain = GmshMeshDomain("aquifer", domain_gdf, cs_dom=100.0)
+        >>> domain.prepare_mesh_domain()
+        >>> domain.create_domain_loop_from_poly()
+    """
+    def __init__(self, name: str, gdf_dom: gpd.GeoDataFrame, cs_dom: Optional[float] = None) -> None:
         self.name = name
         self.cs_dom = cs_dom
         self.gdf_list = []  # list of geopandas dataframes with the geometries to add to the domain shape
@@ -40,29 +55,25 @@ class GmshMeshDomain:
         self.ind_embed_lines = []
         self.ind_embed_points = []
 
-    def add_domain_polygon_geometry(self, gdf_dom_geom):
-        '''
-        This function adds extra geometries to the domain and adds them to the list of gdfs.
-        The function returns a list of geopandas dataframes with the domain geometries.
-        check that gdf_dom is a geopandas dataframe polygon of one elementand that it has a column called cs
+    def add_domain_polygon_geometry(self, gdf_dom_geom: gpd.GeoDataFrame) -> None:
+        """Add additional polygon geometries to extend the domain.
 
-        Parameters
-        ----------
-        gdf_dom_geom : Geodataframe
-            Geometry of the domain, only one feature
+        This function adds extra geometries to the domain shape definition.
+        The geometries will be used when preparing the mesh domain to extend
+        or modify the domain boundaries.
 
-        Raises
-        ------
-        TypeError
-            in case a geodataframe is not provided.
-        ValueError
-            in case a polygon is not provided.
+        Args:
+            gdf_dom_geom: GeoDataFrame containing polygon geometries to add
+                to the domain. Must contain only Polygon geometries.
 
-        Returns
-        -------
-        None.
+        Raises:
+            TypeError: If the input is not a GeoDataFrame.
+            ValueError: If geometries are not all Polygon type.
 
-        '''
+        Example:
+            >>> additional_polys = gpd.read_file("extensions.shp")
+            >>> domain.add_domain_polygon_geometry(additional_polys)
+        """
         
         if not isinstance(gdf_dom_geom, gpd.GeoDataFrame):
             raise TypeError('The geometry must be a geopandas dataframe')
@@ -71,28 +82,36 @@ class GmshMeshDomain:
        
         self.gdf_list.append(gdf_dom_geom)
 
-    def prepare_mesh_domain(self, mesh_area=1,
-                                  gdf_list=[], min_overlap=1,
-                                  meshing_buff_mult=1):
-        '''
-        This function prepares the domain for meshing by either creating a buffer around the domain, simplifying
-        the domain, or both. The buffer is also affected for additional geopandas geometries that are provided to
-        extend the domain. The function returns a geopandas dataframe with the domain geometry.
-        
-        Parameters
-        ----------
-        mesh_area : int, optional
-            0=convex hull, 1=oriented envelope, 2=bounding box. The default is 1.
-        gdf_list : list, optional
-            List of geopandas dataframes with the geometries to add to the domain shape. The default is [].
-        min_overlap : float, optional
-            Minimum overlap between the domain and the additional geometries. The default is 1.
-        meshing_buff_mult : float, optional
-            Multiplier for the meshing buffer. The default is 1.
-        '''
+    def prepare_mesh_domain(self, mesh_area: int = 1,
+                                  gdf_list: List[gpd.GeoDataFrame] = None,
+                                  min_overlap: float = 1.0,
+                                  meshing_buff_mult: float = 1.0) -> None:
+        """Prepare domain geometry for meshing with optional buffering and simplification.
+
+        This function processes the domain geometry to create an optimal shape for meshing.
+        It can simplify boundaries, add buffer zones, and incorporate additional geometries.
+
+        Args:
+            mesh_area: Domain boundary type:
+                - 0: Convex hull (smoothest boundary)
+                - 1: Oriented envelope (rectangular boundary aligned with data)
+                - 2: Bounding box (axis-aligned rectangular boundary)
+            gdf_list: List of additional GeoDataFrames to incorporate into domain shape.
+                If None, uses self.gdf_list.
+            min_overlap: Minimum overlap fraction (0-1) between domain and additional
+                geometries required for inclusion.
+            meshing_buff_mult: Buffer multiplier applied to cell size for domain boundary.
+
+        Example:
+            >>> domain.prepare_mesh_domain(mesh_area=1, meshing_buff_mult=1.5)
+            >>> # Creates oriented envelope with 1.5x cell size buffer
+        """
                
+        if gdf_list is None:
+            gdf_list = self.gdf_list
+            
         shp_dom = self.gdf_dom.geometry[0].simplify(self.cs_dom/2)
-        if self.gdf_list != []:
+        if gdf_list != []:
             for gdf in gdf_list:
                 # lets simplify the domain and delete features not intersecting the domain
                 gdf = gdf.loc[gdf.intersects(self.gdf_dom.geometry[0])]
@@ -121,16 +140,23 @@ class GmshMeshDomain:
         #TODO better to keep it in the gdf variable?
         self.shp_dom = shp_dom
         
-    def create_domain_loop_from_poly(self):
-        '''
-        This function creates a loop from the polygon geometry of the domain.
-        The function returns the index of the curve loop of the outer domain.
-        
-        Returns
-        -------
-        c_ind : int
-            Index of the curve loop of the outer domain.
-        '''
+    def create_domain_loop_from_poly(self) -> List[int]:
+        """Create GMSH curve loop from polygon geometry of the domain.
+
+        Converts the domain polygon boundary into GMSH points, lines, and curve loops
+        that can be used for surface creation and meshing.
+
+        Returns:
+            List containing the index of the curve loop for the outer domain.
+
+        Raises:
+            AssertionError: If domain shape has not been defined via prepare_mesh_domain().
+
+        Example:
+            >>> domain.prepare_mesh_domain()
+            >>> loop_indices = domain.create_domain_loop_from_poly()
+            >>> print(f"Created curve loop {loop_indices[0]}")
+        """
         
         assert self.shp_dom is not None, 'The domain shape is not defined'
         # lets add the outer points of the domain, later the lines, and finally area
@@ -151,24 +177,32 @@ class GmshMeshDomain:
         self.c_ind = c_ind
         return c_ind
 
-    def create_exponential_field(self, df_points, fac=1.1):
-        '''
-        This function creates an exponential field for the domain.
-        
-        Parameters
-        ----------
-        df_points : DataFrame
-            Dataframe with the points to be added to the minimum cell size general field.
-        fac : float, optional
-            Factor that define rate of cell size growing for the exponential field.
-            The default is 1.1.
-            
-        Returns
-        -------
-        ind_min_field : int
-            Index of the minimum field.
-        ind_exp_field : list
-            List of the index of the exponential fields for each cell size.'''
+    def create_exponential_field(self, df_points: pd.DataFrame, fac: float = 1.1) -> Tuple[int, List[int]]:
+        """Create exponential mesh size field based on point locations.
+
+        Sets up a GMSH field that grows mesh size exponentially with distance
+        from specified points. This provides smooth size transitions while
+        maintaining fine resolution near important features.
+
+        Args:
+            df_points: DataFrame with columns 'cs' (cell size) and 'id_gmsh' 
+                (GMSH point IDs) defining control points for mesh sizing.
+            fac: Growth factor for exponential field (typically 1.1-1.3).
+                Higher values create more aggressive size transitions.
+
+        Returns:
+            Tuple of (minimum_field_index, list_of_exponential_field_indices).
+
+        Raises:
+            AssertionError: If fac <= 1.0 or required columns are missing.
+
+        Example:
+            >>> control_points = pd.DataFrame({
+            ...     'cs': [10, 20, 50],
+            ...     'id_gmsh': [1, 2, 3]
+            ... })
+            >>> min_field, exp_fields = domain.create_exponential_field(control_points, fac=1.2)
+        """
         # Implementation of exponential field creation
         assert fac > 1, 'fac must be higher than 1, usually between 1.1 and 1.3'
         assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'

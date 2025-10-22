@@ -1,5 +1,6 @@
 """Line geometry handler for GMSHFlow."""
 
+from typing import List, Optional
 import numpy as np
 import geopandas as gpd
 import gmsh
@@ -9,15 +10,30 @@ from ..utils.preprocessing import simplify_keeping_topology, merge_many_multilin
 
 
 class LineGeometryHandler:
-    '''
-    Class to handle line geometries for meshing in GMSH.
-    
-    Parameters
-    ----------
-    cs_line : float, optional
-        Cell size of the line geometry. The default is None.
-    '''
-    def __init__(self, cs_line=None):
+    """Handler for line geometries in GMSH mesh generation.
+
+    Manages LineString and MultiLineString geometries for mesh generation,
+    including creation of lines, buffer-based surface grids, and conversion
+    to point fields for mesh size control.
+
+    Args:
+        cs_line: Default cell size for line geometries. If None, cell sizes
+            must be specified in the 'cs' column of input GeoDataFrames.
+
+    Attributes:
+        gdf_line: GeoDataFrame containing line geometries.
+        cs_line: Default cell size for lines.
+        gdf_coord: Coordinate points derived from line geometries.
+        ind_s_buff: List of buffer surface indices.
+        c_ind_buf: List of buffer curve loop indices.
+        l_ind_list: List of GMSH line indices.
+
+    Example:
+        >>> handler = LineGeometryHandler(cs_line=25.0)
+        >>> handler.set_gpd_line(river_lines_gdf)
+        >>> lines = handler.create_line_from_line()
+    """
+    def __init__(self, cs_line: Optional[float] = None) -> None:
         self.gdf_line = None
         self.cs_line = cs_line
         self.gdf_coord = None

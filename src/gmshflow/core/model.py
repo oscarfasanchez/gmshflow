@@ -1,84 +1,102 @@
 """Core GMSH model wrapper for GMSHFlow."""
 
+from typing import Optional
 import gmsh
 import pandas as pd
 
 
 class GmshModel:
-    '''
-    Class to create a GMSH instance for meshing.
+    """GMSH model wrapper for mesh generation and management.
 
-    Parameters
-    ----------
-    name : str
-        Name of the GMSH model. 
+    This class provides a high-level interface to GMSH functionality,
+    handling model initialization, mesh generation, and output operations.
 
-    '''
-    def __init__(self, name):
-        '''
-        Initializes the GMSH model.
+    Args:
+        name: Name identifier for the GMSH model.
+
+    Attributes:
+        name: The model name used in GMSH.
+
+    Example:
+        >>> model = GmshModel("groundwater_mesh")
+        >>> model.generate_mesh(dimension=2)
+        >>> model.write("output.msh")
+        >>> model.finalize()
+    """
+    def __init__(self, name: str) -> None:
+        """Initialize the GMSH model.
         
-        Parameters 
-        ----------
-        name : str
-            Name of the GMSH model.
-        '''
+        Args:
+            name: Name identifier for the GMSH model.
+        """
         gmsh.initialize()
         self.name = name
         gmsh.model.add(name)
         # self.geo = gmsh.model.geo
 
-    def finalize(self):
-        '''
-        Finalizes the GMSH model.
-        '''
+    def finalize(self) -> None:
+        """Finalize and cleanup the GMSH model.
+        
+        This should be called when done with the model to free resources.
+        """
         gmsh.finalize()
 
-    def synchronize(self):
-        '''
-        Synchronizes the GMSH model.
-        this is required before some operations
-        '''
+    def synchronize(self) -> None:
+        """Synchronize the GMSH model geometry.
+        
+        This is required before certain mesh operations to ensure
+        all geometry changes are properly registered.
+        """
         gmsh.model.geo.synchronize()
 
-    def generate_mesh(self, dimension=2):
-        ''' 
-        Generates the mesh for the GMSH model.'''
+    def generate_mesh(self, dimension: int = 2) -> None:
+        """Generate mesh for the GMSH model.
+        
+        Args:
+            dimension: Mesh dimension (1=lines, 2=triangles, 3=tetrahedra).
+        """
         gmsh.model.mesh.generate(dimension)
 
-    def write(self, filename):
-        '''
-        Writes the GMSH model to a gmsh file.
-        '''
+    def write(self, filename: str) -> None:
+        """Write the GMSH model to a file.
+        
+        Args:
+            filename: Output filename (typically with .msh extension).
+        """
         gmsh.write(filename)
 
-    def run_gui(self):
-        '''
-        Runs the GMSH GUI
-        this allow to see triangular mesh results and using the 
-        GUI to modify the meshm or to export it to other formats.
-        Also allows to see the mesh quality of the elements in a detailed way.
-        '''
+    def run_gui(self) -> None:
+        """Launch the GMSH GUI for interactive mesh visualization.
+        
+        This allows visualization of triangular mesh results and provides
+        GUI tools to modify the mesh or export to other formats. Also
+        enables detailed mesh quality analysis.
+        """
         gmsh.fltk.run()
         
-    def get_triangular_quality(self):
-        """
-        Get the  follwowing quality measures of the element in the mesh: "minDetJac" and "maxDetJac"
-        for the adaptively computed minimal and maximal Jacobian determinant,
-        "minSJ" for the sampled minimal scaled jacobien, "minSICN" for the sampled
-        minimal signed inverted condition number, "minSIGE" for the sampled signed
-        inverted gradient error, "gamma" for the ratio of the inscribed to
-        circumcribed sphere radius, "innerRadius" for the inner radius,
-        "outerRadius" for the outerRadius, "minIsotropy" for the minimum isotropy
-        measure, "angleShape" for the angle shape measure, "minEdge" for the
-        minimum straight edge length, "maxEdge" for the maximum straight edge
-        length.
+    def get_triangular_quality(self) -> pd.DataFrame:
+        """Get comprehensive quality measures for all triangular mesh elements.
 
-        Returns
-        -------
-        df_qualities : Dataframe
-            Datframe with the mesh quality of every triangle element in the mesh.
+        Computes various geometric quality metrics for each triangle element
+        in the mesh to assess mesh quality and identify problematic elements.
 
+        Returns:
+            DataFrame with quality measures for every triangle element. Columns include:
+            - minDetJac/maxDetJac: Minimal/maximal Jacobian determinant
+            - minSJ: Sampled minimal scaled Jacobian  
+            - minSICN: Minimal signed inverted condition number
+            - minSIGE: Minimal signed inverted gradient error
+            - gamma: Ratio of inscribed to circumscribed sphere radius
+            - innerRadius/outerRadius: Inner and outer radius measures
+            - minIsotropy: Minimum isotropy measure
+            - angleShape: Angle shape measure
+            - minEdge/maxEdge: Minimum and maximum straight edge lengths
+
+        Example:
+            >>> model = GmshModel("test")
+            >>> model.generate_mesh()
+            >>> quality_df = model.get_triangular_quality()
+            >>> poor_elements = quality_df[quality_df['gamma'] < 0.3]
         """
         
         _, etags, _= gmsh.model.mesh.getElements(dim=2)

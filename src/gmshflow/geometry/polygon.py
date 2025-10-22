@@ -1,38 +1,60 @@
 """Polygon geometry handler for GMSHFlow."""
 
+from typing import List, Optional, Tuple
 import geopandas as gpd
 import gmsh
 from ..utils.preprocessing import simplify_keeping_topology
 
 
 class PolyGeometryHandler:
-    '''
-    Class to handle polygon geometries for meshing in GMSH.
-    
-    Parameters
-    ----------
-    cs_poly : float, optional
-        Cell size of the polygon geometry. The default is None.
-    '''
-    def __init__(self, cs_poly=None):
+    """Handler for polygon geometries in GMSH mesh generation.
+
+    This class manages polygon geometries for mesh generation, including
+    simplification, GMSH geometry creation, and specialized meshing strategies
+    like buffer-based surface grids.
+
+    Args:
+        cs_poly: Default cell size for polygon geometries. If None, cell sizes
+            must be specified in the 'cs' column of input GeoDataFrames.
+
+    Attributes:
+        gdf_poly: GeoDataFrame containing polygon geometries.
+        cs_poly: Default cell size for polygons.
+        gdf_coord: Coordinate points derived from polygon boundaries.
+        s_ind: List of GMSH surface indices created from polygons.
+
+    Example:
+        >>> handler = PolyGeometryHandler(cs_poly=50.0)
+        >>> handler.set_gpd_poly(polygon_gdf)
+        >>> loops = handler.create_loop_from_poly(def_surf=True)
+    """
+    def __init__(self, cs_poly: Optional[float] = None) -> None:
         self.gdf_poly = None
         self.cs_poly = cs_poly
         self.gdf_coord = None
         #TODO include the following attributes inside self.gdf_poly
         self.s_ind = []
 
-    def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame, keep_topology=False):
-        '''
-        This function sets the geodataframe polygon for meshing.
-        
-        Parameters
-        ----------
-        gdf_poly : geopandas.GeoDataFrame
-            Geodataframe with the polygon geometry.
-        keep_topology : bool, optional
-            If True, the topology of the polygon geometry is kept, but individual cell sizes wont we used
-            for the simplifications. The default is False.
-            '''
+    def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame, keep_topology: bool = False) -> None:
+        """Set the GeoDataFrame containing polygon geometries for meshing.
+
+        Configures the polygon geometries and applies simplification to improve
+        mesh quality. Validates input geometry types and cell size specifications.
+
+        Args:
+            gdf_poly: GeoDataFrame containing polygon geometries. Must have either
+                a 'cs' column specifying cell sizes or cs_poly must be set.
+            keep_topology: If True, uses topology-preserving simplification across
+                all polygons. If False, simplifies each polygon independently.
+
+        Raises:
+            AssertionError: If geometries are not all Polygon type or if no cell
+                size information is available.
+
+        Example:
+            >>> poly_gdf = gpd.read_file("barriers.shp")
+            >>> handler.set_gpd_poly(poly_gdf, keep_topology=True)
+        """
         # check it is a polygon dataframe
         assert all(gdf_poly.geom_type == 'Polygon'), 'All geometries must be of type Polygon'
         #check that it has a column called cs or cs_poly is not None

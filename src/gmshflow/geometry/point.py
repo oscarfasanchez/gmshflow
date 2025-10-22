@@ -1,20 +1,32 @@
 """Point geometry handler for GMSHFlow."""
 
+from typing import List, Optional
 import pandas as pd
 import geopandas as gpd
 import gmsh
 
 
 class PointGeometryHandler:
-    '''
-    Class to handle point geometries for meshing in GMSH.
-    
-    Parameters
-    ----------
-    cs_point : float, optional
-        Cell size of the point geometry. The default is None.
-    '''
-    def __init__(self, cs_point=None):
+    """Handler for point geometries in GMSH mesh generation.
+
+    Manages Point geometries for mesh generation, primarily used for
+    mesh size control and embedding constraint points in the mesh.
+
+    Args:
+        cs_point: Default cell size for point geometries. If None, cell sizes
+            must be specified in the 'cs' column of input GeoDataFrames.
+
+    Attributes:
+        gdf_point: GeoDataFrame containing point geometries.
+        cs_point: Default cell size for points.
+        gdf_coord: Coordinate information for points.
+
+    Example:
+        >>> handler = PointGeometryHandler(cs_point=10.0)
+        >>> handler.set_gdf_point(well_locations_gdf)
+        >>> point_indices = handler.create_point_from_point()
+    """
+    def __init__(self, cs_point: Optional[float] = None) -> None:
         self.gdf_point = None
         self.cs_point = cs_point
         self.gdf_coord = None
@@ -31,15 +43,22 @@ class PointGeometryHandler:
         if self.cs_point is not None:
             self.gdf_point['cs'] = self.cs_point
         
-    def create_point_from_point(self, df_coord=False):
-        '''
-        This function creates a point from a point geometry.
-        
-        Parameters
-        ----------
-        p_ind : list
-            List of the index of the points of the point geometry.
-            '''
+    def create_point_from_point(self, df_coord: bool = False) -> List[int]:
+        """Create GMSH points from point geometries.
+
+        Converts point geometries to GMSH point entities that can be used
+        for mesh size control or embedding in the mesh.
+
+        Args:
+            df_coord: If True, creates coordinate DataFrame with GMSH IDs.
+
+        Returns:
+            List of GMSH point indices created.
+
+        Example:
+            >>> point_ids = handler.create_point_from_point(df_coord=True)
+            >>> print(f"Created {len(point_ids)} GMSH points")
+        """
         # This function creates a gmsh point from a point geometry
         assert self.gdf_point is not None, 'The point geometry is not defined'
         # lets get the points of the polygons, then the lines, and finally the area
