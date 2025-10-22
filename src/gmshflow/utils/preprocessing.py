@@ -1,6 +1,5 @@
 """Geometry preprocessing utilities for GMSHFlow."""
 
-from typing import Union
 import geopandas as gpd
 import shapely
 import shapely.ops
@@ -32,13 +31,13 @@ def merge_many_multilinestring_into_one_linestring(gdf: gpd.GeoDataFrame) -> gpd
             f"GeoDataFrame must contain MultiLineString geometries. "
             f"Found geometry types: {available_types}"
         )
-    
+
     # explode the multilinestrings
     gdf2 = gdf.explode().reset_index()
     # group the linestrings by the index
     gdf.geometry = gdf2.groupby('index')['geometry'].apply(
         lambda x: shapely.ops.linemerge(list(x), directed=True))
-    
+
     # check that there are no Multilinestrings anymore and that the algorithm worked
     if not all(gdf.geom_type == 'LineString'):
         remaining_types = gdf.geom_type[gdf.geom_type != 'LineString'].unique()

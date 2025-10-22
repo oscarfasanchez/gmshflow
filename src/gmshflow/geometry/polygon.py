@@ -1,8 +1,10 @@
 """Polygon geometry handler for GMSHFlow."""
 
-from typing import List, Optional, Tuple
+from typing import Optional
+
 import geopandas as gpd
 import gmsh
+
 from ..utils.preprocessing import simplify_keeping_topology
 
 
@@ -34,6 +36,7 @@ class PolyGeometryHandler:
         self.gdf_coord = None
         #TODO include the following attributes inside self.gdf_poly
         self.s_ind = []
+        self.c_ind = []
 
     def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame, keep_topology: bool = False) -> None:
         """Set the GeoDataFrame containing polygon geometries for meshing.
@@ -59,7 +62,7 @@ class PolyGeometryHandler:
         if not all(gdf_poly.geom_type == 'Polygon'):
             invalid_types = gdf_poly.geom_type[gdf_poly.geom_type != 'Polygon'].unique()
             raise ValueError(f'All geometries must be Polygon type. Found: {invalid_types}')
-        
+
         # check that it has a column called cs or cs_poly is not None
         if 'cs' not in gdf_poly.columns and self.cs_poly is None:
             available_cols = list(gdf_poly.columns)
@@ -72,7 +75,7 @@ class PolyGeometryHandler:
         if self.cs_poly is not None:
             if keep_topology:
                 self.gdf_poly = simplify_keeping_topology(self.gdf_poly, self.cs_poly)
-            else:    
+            else:
                 self.gdf_poly.geometry = self.gdf_poly.geometry.simplify(self.cs_poly/2)
             self.gdf_poly['cs'] = self.cs_poly
         else:
@@ -81,7 +84,7 @@ class PolyGeometryHandler:
                 print('Warning: the topology will be kept, but the geometries will be simplified'
                       'to the biggest cell size, even if some elements have smaller cell sizes'
                         ', this wont affect the final mesh size necessarily')
-                self.cs_poly = self.cs_poly.max()
+                self.cs_poly = self.gdf_poly['cs'].max()
                 self.gdf_poly = simplify_keeping_topology(self.gdf_poly, self.cs_poly)
             else:
                 self.gdf_poly.geometry = self.gdf_poly.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
@@ -111,7 +114,7 @@ class PolyGeometryHandler:
             for xy in poly_xy[:-1]:  # to avoid repeated points
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.gdf_poly.loc[i, 'cs'])# TODO check
                 p_ind.append(ind)
-            
+
             l_ind = []
             for j in range(len(p_ind)):
                 ind = gmsh.model.geo.addLine(p_ind[j-1], p_ind[j])
@@ -120,7 +123,7 @@ class PolyGeometryHandler:
             c_ind = []
             ind = gmsh.model.geo.addCurveLoop(l_ind)
             c_ind.append(ind)
-               
+
             if def_surf:
                 ind_s = gmsh.model.geo.addPlaneSurface(c_ind)
                 self.s_ind.append(ind_s)
@@ -128,7 +131,7 @@ class PolyGeometryHandler:
             # add the indices to a new column in the dataframe
             # TODO decide the final data storage system I will use
             self.gdf_poly.loc[i, 'c_ind'] = c_ind
-            
+
             # self.gdf_poly.loc[i,'l_ind'] = l_ind
             # self.gdf_poly.loc[i,'p_ind'] = p_ind
         return self.gdf_poly['c_ind'].tolist()

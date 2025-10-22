@@ -1,9 +1,10 @@
 """Point geometry handler for GMSHFlow."""
 
 from typing import List, Optional
-import pandas as pd
+
 import geopandas as gpd
 import gmsh
+import pandas as pd
 
 
 class PointGeometryHandler:
@@ -38,7 +39,7 @@ class PointGeometryHandler:
         if not all(gdf_point.geom_type == 'Point'):
             invalid_types = gdf_point.geom_type[gdf_point.geom_type != 'Point'].unique()
             raise ValueError(f'All geometries must be Point type. Found: {invalid_types}')
-        
+
         # check that it has a column called cs or cs_point is not None
         if 'cs' not in gdf_point.columns and self.cs_point is None:
             available_cols = list(gdf_point.columns)
@@ -50,7 +51,7 @@ class PointGeometryHandler:
         #simplify the geometries
         if self.cs_point is not None:
             self.gdf_point['cs'] = self.cs_point
-        
+
     def create_point_from_point(self, df_coord: bool = False) -> List[int]:
         """Create GMSH points from point geometries.
 
@@ -80,6 +81,6 @@ class PointGeometryHandler:
         if df_coord:
             self.gdf_coord = self.gdf_point
             self.gdf_coord = pd.concat(
-                [self.gdf_coord, self.gdf_point.get_coordinates()], axis=1) 
+                [self.gdf_coord, self.gdf_point.get_coordinates()], axis=1)
             self.gdf_coord['id_gmsh'] = self.gdf_coord['p_ind'].astype(int)
         return p_ind

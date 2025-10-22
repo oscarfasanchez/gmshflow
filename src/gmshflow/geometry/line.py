@@ -1,12 +1,17 @@
 """Line geometry handler for GMSHFlow."""
 
-from typing import List, Optional
-import numpy as np
+from statistics import mean
+from typing import Optional
+
 import geopandas as gpd
 import gmsh
+import numpy as np
 from shapely.geometry import Point
-from statistics import mean
-from ..utils.preprocessing import simplify_keeping_topology, merge_many_multilinestring_into_one_linestring
+
+from ..utils.preprocessing import (
+    merge_many_multilinestring_into_one_linestring,
+    simplify_keeping_topology,
+)
 
 
 class LineGeometryHandler:
@@ -59,7 +64,7 @@ class LineGeometryHandler:
         if not all(gdf_line.geom_type.isin(valid_types)):
             invalid_types = gdf_line.geom_type[~gdf_line.geom_type.isin(valid_types)].unique()
             raise ValueError(f'All geometries must be LineString or MultiLineString. Found: {invalid_types}')
-        
+
         # check that it has a column called cs or cs_line is not None
         if 'cs' not in gdf_line.columns and self.cs_line is None:
             available_cols = list(gdf_line.columns)
@@ -67,12 +72,12 @@ class LineGeometryHandler:
                 f"Either 'cs' column must exist in GeoDataFrame or cs_line must be set. "
                 f"Available columns: {available_cols}"
             )
-        
+
         # TODO simplify keeping topology through the package topojson
         print('Warning: the line geometries will be simplified without keeping topology, check the results')
         if any(gdf_line.geom_type == 'MultiLineString'):
             self.gdf_line = gdf_line.explode().reset_index()
-        else:  
+        else:
             self.gdf_line = gdf_line
         #simplify the geometries
         if self.cs_line is not None:
@@ -80,14 +85,14 @@ class LineGeometryHandler:
                 self.gdf_line = simplify_keeping_topology(self.gdf_line, self.cs_line)
             else:
                 self.gdf_line.geometry = self.gdf_line.geometry.simplify(self.cs_line/2)
-            self.gdf_line['cs'] = self.cs_line 
+            self.gdf_line['cs'] = self.cs_line
         else:
             if keep_topology:
                 #get the biggest cell size to simplify the geometries
                 print('Warning: the topology will be kept, but the geometries will be simplified'
                       ' to the biggest cell size, even if some elements have smaller cell sizes'
                         ', this wont affect the final mesh size necessarily')
-                self.cs_line = self.cs_line.max()
+                self.cs_line = self.gdf_line['cs'].max()
                 self.gdf_line = simplify_keeping_topology(self.gdf_line, self.cs_line)
             else:
                 self.gdf_line.geometry = self.gdf_line.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
@@ -111,7 +116,7 @@ class LineGeometryHandler:
             for xy in line_xy[:]:  # to avoid repeated points
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.gdf_line.loc[i, 'cs'])# TODO check
                 p_ind.append(ind)
-            
+
             l_ind = []
             for j in range(len(p_ind)-1):
                 ind = gmsh.model.geo.addLine(p_ind[j], p_ind[j+1])
@@ -148,7 +153,7 @@ class LineGeometryHandler:
 
         '''
         # lets simplify the barrier to ease the quad meshing
-        # Failed attempt to smooth angles, better just enforce 1 or 2 to avoid 
+        # Failed attempt to smooth angles, better just enforce 1 or 2 to avoid
         # misuse of it with poor meshes
         print('starting: create_surfacegrid_from_buffer_line')
         print('Warning, this function expects that different feature lines are not intersecting')
@@ -171,7 +176,7 @@ class LineGeometryHandler:
                 cs_thick * cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
             off_neg = self.gdf_line.loc[i, "geometry"].offset_curve(
                 -cs_thick * cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
-            
+
             #save the offset geometry on the original line gdf
             self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_pos_{i}', off_pos, self.gdf_line.loc[i, 'cs']]
             self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_neg_{i}', off_neg, self.gdf_line.loc[i, 'cs']]
@@ -184,8 +189,8 @@ class LineGeometryHandler:
                 # reassign the merged linestring to the original line
                 off_pos = self.gdf_line.loc[self.gdf_line.layer == f'off_pos_{i}', 'geometry'].values[0]
                 off_neg = self.gdf_line.loc[self.gdf_line.layer == f'off_neg_{i}', 'geometry'].values[0]
-            
-            
+
+
             # get nodes of buffer to assign them to the mesh iteratively
             off_pos_xy = list(zip(off_pos.xy[0], off_pos.xy[1]))
             off_neg_xy = list(zip(off_neg.xy[0], off_neg.xy[1]))
@@ -194,7 +199,7 @@ class LineGeometryHandler:
             for xy in off_pos_xy:  # to avoid repeated points?
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, cs_line)
                 p_ind_pos.append(ind)
-            
+
             p_ind_neg = []
             for xy in off_neg_xy:
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, cs_line)
@@ -225,31 +230,31 @@ class LineGeometryHandler:
             # The side of the rectanule perpendicular to the original line is divided according to the buffer size
             gmsh.model.geo.mesh.setTransfiniteCurve(l_strt, 2+(cs_thick-1)) # transfinite and recombination are incompatible apparently
             gmsh.model.geo.mesh.setTransfiniteCurve(l_end, 2+(cs_thick-1))
-            
+
             gmsh.model.geo.synchronize()
             # the parallel sides ere divided according to the original line size and the cell size
             for j in range(len(l_ind_neg)):
-                # off_neg_xy[i] 
+                # off_neg_xy[i]
                 # TODO include both sides on the computation
                 disp = Point(off_neg_xy[j]).distance(Point(off_neg_xy[j+1]))
                 disn = Point(off_pos_xy[j]).distance(Point(off_pos_xy[j+1]))
-                
+
                 cs_line = self.gdf_line.loc[i, 'cs']
                 div = round(mean([disp, disn])/cs_line)
                 gmsh.model.geo.mesh.setTransfiniteCurve(l_ind_neg[j], div+1)#2#div+1
                 gmsh.model.geo.mesh.setTransfiniteCurve(l_ind_pos[j], div+1)#2#div+1
-            #lets setup the Surface   
+            #lets setup the Surface
             #set it as a transfinite surface
             gmsh.model.geo.mesh.setTransfiniteSurface(ind_s_buff, "Left", [p_ind_neg[0], p_ind_neg[-1], p_ind_pos[-1], p_ind_pos[0]])
-        
+
             # to make quad grids
             #TODO write here the algorithm names
             gmsh.option.setNumber("Mesh.RecombinationAlgorithm", 0)# 0, 2,  3
             gmsh.model.geo.mesh.setRecombine(2, ind_s_buff)
             gmsh.model.geo.synchronize()
-    
+
             gmsh.model.mesh.setAlgorithm(2, ind_s_buff, 8) #frontal delunay quads
-            
+
         return self.c_ind_buf
 
     def convert_to_points_for_size_fields(self):

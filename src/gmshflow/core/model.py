@@ -1,6 +1,5 @@
 """Core GMSH model wrapper for GMSHFlow."""
 
-from typing import Optional
 import gmsh
 import pandas as pd
 
@@ -48,12 +47,12 @@ class GmshModel:
         """
         if self._initialized:
             raise RuntimeError(f"GMSH model '{self.name}' is already initialized")
-            
+
         gmsh.initialize()
         gmsh.model.add(self.name)
         self._initialized = True
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit the context manager and cleanup GMSH resources.
         
@@ -66,7 +65,7 @@ class GmshModel:
             exc_tb: Exception traceback (if any).
         """
         self.finalize()
-    
+
     def finalize(self) -> None:
         """Finalize and cleanup the GMSH model safely.
         
@@ -81,7 +80,7 @@ class GmshModel:
                 print(f"Warning: GMSH finalization failed: {e}")
             finally:
                 self._initialized = False
-    
+
     def close(self) -> None:
         """Close the GMSH model (alias for finalize).
         
@@ -149,7 +148,7 @@ class GmshModel:
         """
         self._ensure_initialized()
         gmsh.fltk.run()
-        
+
     def get_triangular_quality(self) -> pd.DataFrame:
         """Get comprehensive quality measures for all triangular mesh elements.
 
@@ -178,8 +177,16 @@ class GmshModel:
             ...     poor_elements = quality_df[quality_df['gamma'] < 0.3]
         """
         self._ensure_initialized()
-        
+
         _, etags, _= gmsh.model.mesh.getElements(dim=2)
+        
+        # Check if mesh has elements
+        if not etags or len(etags) == 0 or len(etags[0]) == 0:
+            # Return empty DataFrame with expected columns
+            columns = ['minSICN', 'minDetJac', 'maxDetJac', 'minSJ', 'minSIGE', 'gamma', 
+                      'innerRadius', 'outerRadius', 'minIsotropy', 'angleShape', 'minEdge', 'maxEdge']
+            return pd.DataFrame(columns=columns)
+        
         # Get the following quality measures of the element in the mesh
         qualities = {
             "minSICN": gmsh.model.mesh.getElementQualities(etags[0], "minSICN"),  # minimal signed inverted condition number

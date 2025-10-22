@@ -1,11 +1,12 @@
 """Domain mesh creation and management for GMSHFlow."""
 
 import os
-from typing import List, Optional, Tuple, Union
-import numpy as np
-import pandas as pd
+from typing import List, Optional, Tuple
+
 import geopandas as gpd
 import gmsh
+import numpy as np
+import pandas as pd
 import shapely
 import shapely.ops
 from shapely.geometry import Point
@@ -74,16 +75,16 @@ class GmshMeshDomain:
             >>> additional_polys = gpd.read_file("extensions.shp")
             >>> domain.add_domain_polygon_geometry(additional_polys)
         """
-        
+
         if not isinstance(gdf_dom_geom, gpd.GeoDataFrame):
             raise TypeError(f'Expected GeoDataFrame, got {type(gdf_dom_geom).__name__}')
-        
+
         if not all(gdf_dom_geom.geom_type == 'Polygon'):
             invalid_types = gdf_dom_geom.geom_type[gdf_dom_geom.geom_type != 'Polygon'].unique()
             raise ValueError(
                 f'All geometries must be Polygon type. Found invalid types: {invalid_types}'
             )
-       
+
         self.gdf_list.append(gdf_dom_geom)
 
     def prepare_mesh_domain(self, mesh_area: int = 1,
@@ -110,10 +111,10 @@ class GmshMeshDomain:
             >>> domain.prepare_mesh_domain(mesh_area=1, meshing_buff_mult=1.5)
             >>> # Creates oriented envelope with 1.5x cell size buffer
         """
-               
+
         if gdf_list is None:
             gdf_list = self.gdf_list
-            
+
         shp_dom = self.gdf_dom.geometry[0].simplify(self.cs_dom/2)
         if gdf_list != []:
             for gdf in gdf_list:
@@ -130,7 +131,7 @@ class GmshMeshDomain:
                 one_multipol = shapely.ops.unary_union(gdf.geometry)
                 shp_dom = shapely.ops.unary_union([one_multipol,
                                                     shp_dom])
-                
+
         # to smooth triangulation, simpler boundaries makes better mesh
         if mesh_area == 0:
             shp_dom = shapely.convex_hull(shp_dom).buffer(
@@ -143,7 +144,7 @@ class GmshMeshDomain:
                 self.cs_dom*meshing_buff_mult, join_style='mitre')
         #TODO better to keep it in the gdf variable?
         self.shp_dom = shp_dom
-        
+
     def create_domain_loop_from_poly(self) -> List[int]:
         """Create GMSH curve loop from polygon geometry of the domain.
 
@@ -161,7 +162,7 @@ class GmshMeshDomain:
             >>> loop_indices = domain.create_domain_loop_from_poly()
             >>> print(f"Created curve loop {loop_indices[0]}")
         """
-        
+
         if self.shp_dom is None:
             raise RuntimeError(
                 'Domain shape is not defined. Call prepare_mesh_domain() first.'
@@ -177,7 +178,7 @@ class GmshMeshDomain:
         for i in range(len(p_ind)):
             ind = gmsh.model.geo.addLine(p_ind[i-1], p_ind[i])
             l_ind.append(ind)
-        
+
         c_ind = []
         ind = gmsh.model.geo.addCurveLoop(l_ind, 1)
         c_ind.append(ind)
@@ -210,12 +211,12 @@ class GmshMeshDomain:
             ... })
             >>> min_field, exp_fields = domain.create_exponential_field(control_points, fac=1.2)
         """
-        # Implementation of exponential field creation  
+        # Implementation of exponential field creation
         if fac <= 1.0:
             raise ValueError(
                 f'Growth factor must be > 1.0 (typically 1.1-1.3). Got: {fac}'
             )
-        
+
         if 'cs' not in df_points.columns:
             available_cols = list(df_points.columns)
             raise ValueError(
@@ -223,7 +224,7 @@ class GmshMeshDomain:
             )
         gmsh.model.geo.synchronize()
         ind_exp_field = []
-        #define a distance and exponential field for each cell size 
+        #define a distance and exponential field for each cell size
         for cs in df_points.cs.unique():
             df_points_cs = df_points.loc[df_points.cs==cs]
             ind_dist_field = gmsh.model.mesh.field.add("Distance")  # TODO check to get var
@@ -266,7 +267,7 @@ class GmshMeshDomain:
             raise ValueError(
                 f'Growth factor must be > 1.0 (typically 1.1-1.3). Got: {fac}'
             )
-        
+
         if 'cs' not in df_points.columns:
             available_cols = list(df_points.columns)
             raise ValueError(
@@ -274,7 +275,7 @@ class GmshMeshDomain:
             )
         gmsh.model.geo.synchronize()
         ind_thres_field = []
-        #define a distance and exponential field for each cell size 
+        #define a distance and exponential field for each cell size
         for cs in df_points.cs.unique():
             df_points_cs = df_points.loc[df_points.cs==cs]
             ind_dist_field = gmsh.model.mesh.field.add("Distance")  # TODO check to get var
@@ -292,7 +293,7 @@ class GmshMeshDomain:
         gmsh.model.mesh.field.setNumbers(ind_min_field, "FieldsList", ind_thres_field)
         self.ind_min_field = ind_min_field
         # return ind_min_field, ind_thres_field
-    
+
     def set_field(self):
         '''
         This function sets the minimum field as the background mesh field.
@@ -322,7 +323,7 @@ class GmshMeshDomain:
             gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 1)
         else:
             gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
-        
+
         # gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
 
     def add_internal_loops(self, loop_ids: list):
@@ -380,7 +381,11 @@ class GmshMeshDomain:
         triangle_vert_export : bool, optional
             If True, the function exports the triangle vertices to a shapefile. The default is False.
 
-        '''                
+        '''
+        # Validate inputs before any GMSH operations
+        if not surface_ids:
+            raise ValueError("No valid surfaces provided for Voronoi export")
+        
         surf_tags = surface_ids
         # check if the domain surface id is included in the list of surfaces
         if self.ind_s_dom not in surf_tags:
@@ -403,7 +408,7 @@ class GmshMeshDomain:
             for i in self.ind_embed_lines:
                 _, nodeCoords1, _ = gmsh.model.mesh.getNodes(1, i, includeBoundary=True)
                 nodeCoords = np.concatenate((nodeCoords, nodeCoords1))
-        #organize the coordinates in an array more suitable 
+        #organize the coordinates in an array more suitable
         triang_node_coords = nodeCoords.reshape(len(nodeCoords) // 3, 3)
         triang_node_coords = [[x[0], x[1]] for x in triang_node_coords]
         #delete duplicates caused by including the boundary of all surfaces

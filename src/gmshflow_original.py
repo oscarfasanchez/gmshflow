@@ -1,5 +1,5 @@
 # GMSHFLOW is a wrapper for GMSH that allows the user to create a mesh for a
-# a MODFLOW6 groundwater flow model. 
+# a MODFLOW6 groundwater flow model.
 # The user provides shapefiles in geopandas format for the domain, boundary conditions, and other features
 # that are used to create the mesh.
 
@@ -7,15 +7,16 @@
 # with the name of voro_barrier_gmsh.py but using OOP principles
 
 # Import libraries
+import os
+
 import geopandas as gpd
+import gmsh
 import numpy as np
 import pandas as pd
-import os
-import gmsh
-
 import shapely
-from shapely.geometry import Point
 import topojson as tp
+from shapely.geometry import Point
+
 
 def merge_many_multilinestring_into_one_linestring(gdf):
     '''
@@ -75,7 +76,7 @@ def simplify_keeping_topology(gdf, cs , plot=False):
         simple.plot()
     gdf.geometry = simple.geometry
     return gdf
-    
+
 
 class GmshModel:
     '''
@@ -133,7 +134,7 @@ class GmshModel:
         Also allows to see the mesh quality of the elements in a detailed way.
         '''
         gmsh.fltk.run()
-        
+
     def get_triangular_quality(self):
         """
         Get the  follwowing quality measures of the element in the mesh: "minDetJac" and "maxDetJac"
@@ -153,7 +154,7 @@ class GmshModel:
             Datframe with the mesh quality of every triangle element in the mesh.
 
         """
-        
+
         _, etags, _= gmsh.model.mesh.getElements(dim=2)
         # Get the following quality measures of the element in the mesh
         qualities = {
@@ -174,17 +175,17 @@ class GmshModel:
         # Save everything on a dataframe
         df_qualities = pd.DataFrame(qualities)
         return df_qualities
-        
 
 
-        
-        
+
+
+
 # TODO check if its suitable to include the following functions in the class
 #  set_field, set_mesh_size_from_geometries, add_internal_loop, create_domain_surface, export_to_voronoi
 #  add_embedded_lines, add_embedded_points, create_domain_loop_from_poly, create_exponential_field, create_linear_threshold_field
 #  and adding in the other objects the code to pass that dara to the gmsh model here
 #  for now I just want something that works, I will refactor later
-# also write get functions for the internal variables of the classes to avoid direct access to them.    
+# also write get functions for the internal variables of the classes to avoid direct access to them.
 
 #Also need to standarize variable names and define clearly the system to store important variables.
 
@@ -204,8 +205,8 @@ class GmshMeshDomain:
         in a field called 'cs'.
     
     '''
-    #define the constructor using the domain, the domain is a 
-    #geopandas dataframe that contains a column with the cell size called 'cs' 
+    #define the constructor using the domain, the domain is a
+    #geopandas dataframe that contains a column with the cell size called 'cs'
     def __init__(self, name, gdf_dom:gpd.GeoDataFrame, cs_dom:float = None):
         self.name = name
         self.cs_dom = cs_dom
@@ -218,7 +219,7 @@ class GmshMeshDomain:
         self.ind_s_dom = None # index of the domain surface
         self.ind_embed_lines = []
         self.ind_embed_points = []
-        
+
 
 
     def add_domain_polygon_geometry(self, gdf_dom_geom):
@@ -244,16 +245,16 @@ class GmshMeshDomain:
         None.
 
         '''
-        
+
         if not isinstance(gdf_dom_geom, gpd.GeoDataFrame):
             raise TypeError('The geometry must be a geopandas dataframe')
         if not all(gdf_dom_geom.geom_type == 'Polygon'):
             raise ValueError('All geometries in the domain must be of type Polygon')
-       
+
         self.gdf_list.append(gdf_dom_geom)
 
 
-    
+
     def prepare_mesh_domain(self, mesh_area=1,
                                   gdf_list=[], min_overlap=1,
                                   meshing_buff_mult=1):
@@ -273,8 +274,8 @@ class GmshMeshDomain:
         meshing_buff_mult : float, optional
             Multiplier for the meshing buffer. The default is 1.
         '''
-               
-               
+
+
         shp_dom = self.gdf_dom.geometry[0].simplify(self.cs_dom/2)
         if self.gdf_list != []:
             for gdf in gdf_list:
@@ -291,7 +292,7 @@ class GmshMeshDomain:
                 one_multipol = shapely.ops.unary_union(gdf.geometry)
                 shp_dom = shapely.ops.unary_union([one_multipol,
                                                     shp_dom])
-                
+
         # to smooth triangulation, simpler boundaries makes better mesh
         if mesh_area == 0:
             shp_dom = shapely.convex_hull(shp_dom).buffer(
@@ -304,7 +305,7 @@ class GmshMeshDomain:
                 self.cs_dom*meshing_buff_mult, join_style='mitre')
         #TODO better to keep it in the gdf variable?
         self.shp_dom = shp_dom
-        
+
     def create_domain_loop_from_poly(self):
         '''
         This function creates a loop from the polygon geometry of the domain.
@@ -315,7 +316,7 @@ class GmshMeshDomain:
         c_ind : int
             Index of the curve loop of the outer domain.
         '''
-        
+
         assert self.shp_dom is not None, 'The domain shape is not defined'
         # lets add the outer points of the domain, later the lines, and finally area
         shp_dom_xy = list(zip(self.shp_dom.exterior.xy[0], self.shp_dom.exterior.xy[1]))
@@ -328,7 +329,7 @@ class GmshMeshDomain:
         for i in range(len(p_ind)):
             ind = gmsh.model.geo.addLine(p_ind[i-1], p_ind[i])
             l_ind.append(ind)
-        
+
         c_ind = []
         ind = gmsh.model.geo.addCurveLoop(l_ind, 1)
         c_ind.append(ind)
@@ -358,7 +359,7 @@ class GmshMeshDomain:
         assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'
         gmsh.model.geo.synchronize()
         ind_exp_field = []
-        #define a distance and exponential field for each cell size 
+        #define a distance and exponential field for each cell size
         for cs in df_points.cs.unique():
             df_points_cs = df_points.loc[df_points.cs==cs]
             ind_dist_field = gmsh.model.mesh.field.add("Distance")  # TODO check to get var
@@ -401,7 +402,7 @@ class GmshMeshDomain:
         assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'
         gmsh.model.geo.synchronize()
         ind_thres_field = []
-        #define a distance and exponential field for each cell size 
+        #define a distance and exponential field for each cell size
         for cs in df_points.cs.unique():
             df_points_cs = df_points.loc[df_points.cs==cs]
             ind_dist_field = gmsh.model.mesh.field.add("Distance")  # TODO check to get var
@@ -419,7 +420,7 @@ class GmshMeshDomain:
         gmsh.model.mesh.field.setNumbers(ind_min_field, "FieldsList", ind_thres_field)
         self.ind_min_field = ind_min_field
         # return ind_min_field, ind_thres_field
-    
+
     def set_field(self):
         '''
         This function sets the minimum field as the background mesh field.
@@ -445,7 +446,7 @@ class GmshMeshDomain:
             gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 1)
         else:
             gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
-        
+
         # gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
 
     def add_internal_loops(self, loop_ids:list):
@@ -463,7 +464,7 @@ class GmshMeshDomain:
             assert loop_id not in self.loop_list_surface_dom, 'The loop was already added'
             self.loop_list_surface_dom.append(loop_id)
             print('Internal loop added successfully')
-  
+
 
     def create_domain_surface(self):
         '''
@@ -500,7 +501,7 @@ class GmshMeshDomain:
         triangle_vert_export : bool, optional
             If True, the function exports the triangle vertices to a shapefile. The default is False.
 
-        '''                
+        '''
         surf_tags = surface_ids
         # check if the domain surface id is included in the list of surfaces
         if self.ind_s_dom not in surf_tags:
@@ -523,7 +524,7 @@ class GmshMeshDomain:
             for i in self.ind_embed_lines:
                 _, nodeCoords1, _ = gmsh.model.mesh.getNodes(1, i, includeBoundary=True)
                 nodeCoords = np.concatenate((nodeCoords, nodeCoords1))
-        #organize the coordinates in an array more suitable 
+        #organize the coordinates in an array more suitable
         triang_node_coords = nodeCoords.reshape(len(nodeCoords) // 3, 3)
         triang_node_coords = [[x[0], x[1]] for x in triang_node_coords]
         #delete duplicates caused by including the boundary of all surfaces
@@ -547,8 +548,8 @@ class GmshMeshDomain:
         # trian_p_gpd.to_file(os.path.join(ws, f'{name}_points.shp'))
 
         return voro_gpd
-        
-    
+
+
 
     def add_embedded_lines(self, id_line_list:list, surface_id:int=None):
         '''
@@ -569,7 +570,7 @@ class GmshMeshDomain:
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.embed(line_dim, id_line_list, surface_dim, surface_id)
         self.ind_embed_lines += id_line_list
-        
+
 
     def add_embedded_points(self, id_point_list:list, surface_id:int=None):
         '''
@@ -632,7 +633,7 @@ class PolyGeometryHandler:
         if self.cs_poly is not None:
             if keep_topology:
                 self.gdf_poly = simplify_keeping_topology(self.gdf_poly, self.cs_poly)
-            else:    
+            else:
                 self.gdf_poly.geometry = self.gdf_poly.geometry.simplify(self.cs_poly/2)
             self.gdf_poly['cs'] = self.cs_poly
         else:
@@ -645,11 +646,11 @@ class PolyGeometryHandler:
                 self.gdf_poly = simplify_keeping_topology(self.gdf_poly, self.cs_poly)
             else:
                 self.gdf_poly.geometry = self.gdf_poly.apply(lambda x: x.geometry.simplify(x.cs/2), axis=1)
-            
-        
-        
 
-    
+
+
+
+
     def create_loop_from_poly(self, def_surf=False):
         '''
         This function creates a loop from a polygon geometry.
@@ -674,7 +675,7 @@ class PolyGeometryHandler:
             for xy in poly_xy[:-1]:  # to avoid repeated points
                 ind =  gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.gdf_poly.loc[i, 'cs'])# TODO check
                 p_ind.append(ind)
-            
+
             l_ind = []
             for j in range(len(p_ind)):
                 ind = geo.addLine(p_ind[j-1], p_ind[j])
@@ -683,7 +684,7 @@ class PolyGeometryHandler:
             c_ind = []
             ind = gmsh.model.geo.addCurveLoop(l_ind)
             c_ind.append(ind)
-               
+
 
             if def_surf:
                 ind_s = gmsh.model.geo.addPlaneSurface(c_ind)
@@ -692,12 +693,12 @@ class PolyGeometryHandler:
             # add the indices to a new column in the dataframe
             # TODO decide the final data storage system I will use
             self.gdf_poly.loc[i, 'c_ind'] = c_ind
-            
+
             # self.gdf_poly.loc[i,'l_ind'] = l_ind
             # self.gdf_poly.loc[i,'p_ind'] = p_ind
         return self.gdf_poly['c_ind'].tolist()
         #TODO add a return?
-        
+
 
     def create_surfacegrid_from_buffer_poly(self, cs_thick=1, simpl_fac=1.5, def_surf=True):
         '''
@@ -840,7 +841,7 @@ class LineGeometryHandler:
         self.gdf_coord = None
         self.ind_s_buff = []
         self.c_ind_buf = []
-        
+
         self.l_ind_list = []
 
 
@@ -862,11 +863,11 @@ class LineGeometryHandler:
         #check that it has a column called cs or cs_line is not None
         #TODO simplify keepting topology through the package topojson
         print('Warning: the line geometries will be simplified without keeping topology, check the results')
-          
+
         assert 'cs' in gdf_line.columns or self.cs_line is not None, 'The geodataframe must have a cell size column or cs_line must be defined'
         if any(gdf_line.geom_type == 'MultiLineString'):
             self.gdf_line = gdf_line.explode().reset_index()
-        else:  
+        else:
             self.gdf_line = gdf_line
         #simplify the geometries
         if self.cs_line is not None:
@@ -874,7 +875,7 @@ class LineGeometryHandler:
                 self.gdf_line = simplify_keeping_topology(self.gdf_line, self.cs_line)
             else:
                 self.gdf_line.geometry = self.gdf_line.geometry.simplify(self.cs_line/2)
-            self.gdf_line['cs'] = self.cs_line 
+            self.gdf_line['cs'] = self.cs_line
         else:
             if keep_topology:
                 #get the biggest cell size to simplify the geometries
@@ -904,7 +905,7 @@ class LineGeometryHandler:
             for xy in line_xy[:]:  # to avoid repeated points
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, self.gdf_line.loc[i, 'cs'])# TODO check
                 p_ind.append(ind)
-            
+
             l_ind = []
             for j in range(len(p_ind)-1):
                 ind = gmsh.model.geo.addLine(p_ind[j], p_ind[j+1])
@@ -942,7 +943,7 @@ class LineGeometryHandler:
 
         '''
         # lets simplify the barrier to ease the quad meshing
-        # Failed attempt to smooth angles, better just enforce 1 or 2 to avoid 
+        # Failed attempt to smooth angles, better just enforce 1 or 2 to avoid
         # misuse of it with poor meshes
         print('starting: create_surfacegrid_from_buffer_line')
         print('Warning, this function expects that different feature lines are not intersecting')
@@ -961,7 +962,7 @@ class LineGeometryHandler:
                 cs_thick * cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
             off_neg = self.gdf_line.loc[i, "geometry"].offset_curve(
                 -cs_thick * cs_line / 2, quad_segs=1, join_style=2, mitre_limit=5.0)
-            
+
             #save the offset geometry on the original line gdf
             self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_pos_{i}', off_pos, self.gdf_line.loc[i, 'cs']]
             self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_neg_{i}', off_neg, self.gdf_line.loc[i, 'cs']]
@@ -974,8 +975,8 @@ class LineGeometryHandler:
                 # reassign the merged linestring to the original line
                 off_pos = self.gdf_line.loc[self.gdf_line.layer == f'off_pos_{i}', 'geometry'].values[0]
                 off_neg = self.gdf_line.loc[self.gdf_line.layer == f'off_neg_{i}', 'geometry'].values[0]
-            
-            
+
+
             # get nodes of buffer to assign them to the mesh iteratively
             off_pos_xy = list(zip(off_pos.xy[0], off_pos.xy[1]))
             off_neg_xy = list(zip(off_neg.xy[0], off_neg.xy[1]))
@@ -984,7 +985,7 @@ class LineGeometryHandler:
             for xy in off_pos_xy:  # to avoid repeated points?
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, cs_line)
                 p_ind_pos.append(ind)
-            
+
             p_ind_neg = []
             for xy in off_neg_xy:
                 ind = gmsh.model.geo.addPoint(xy[0], xy[1], 0, cs_line)
@@ -1015,31 +1016,31 @@ class LineGeometryHandler:
             # The side of the rectanule perpendicular to the original line is divided according to the buffer size
             gmsh.model.geo.mesh.setTransfiniteCurve(l_strt, 2+(cs_thick-1)) # transfinite and recombination are incompatible apparently
             gmsh.model.geo.mesh.setTransfiniteCurve(l_end, 2+(cs_thick-1))
-            
+
             gmsh.model.geo.synchronize()
             # the parallel sides ere divided according to the original line size and the cell size
             for j in range(len(l_ind_neg)):
                 from statistics import mean
-                # off_neg_xy[i] 
+                # off_neg_xy[i]
                 # TODO include both sides on the computation
                 disp = Point(off_neg_xy[j]).distance(Point(off_neg_xy[j+1]))
                 disn = Point(off_pos_xy[j]).distance(Point(off_pos_xy[j+1]))
-                
+
                 cs_line = self.gdf_line.loc[i, 'cs']
                 div = round(mean([disp, disn])/cs_line)
                 gmsh.model.geo.mesh.setTransfiniteCurve(l_ind_neg[j], div+1)#2#div+1
                 gmsh.model.geo.mesh.setTransfiniteCurve(l_ind_pos[j], div+1)#2#div+1
-            #lets setup the Surface   
+            #lets setup the Surface
             #set it as a transfinite surface
             gmsh.model.geo.mesh.setTransfiniteSurface(ind_s_buff, "Left", [p_ind_neg[0], p_ind_neg[-1], p_ind_pos[-1], p_ind_pos[0]])
-        
+
             # to make quad grids
             #TODO write here the algorithm names
             gmsh.option.setNumber("Mesh.RecombinationAlgorithm", 0)# 0, 2,  3
             gmsh.model.geo.mesh.setRecombine(2, ind_s_buff)
             gmsh.model.geo.synchronize()
-    
-    
+
+
             gmsh.model.mesh.setAlgorithm(2, ind_s_buff, 8) #frontal delunay quads
             #save the offset geometry on the original line gdf
             # self.gdf_line.loc[self.gdf_line.shape[0], ['layer', 'geometry', 'cs']] = [f'off_pos_{i}', off_pos, self.gdf_line.loc[i, 'cs']]
@@ -1104,7 +1105,7 @@ class PointGeometryHandler:
         #simplify the geometries
         if self.cs_point is not None:
             self.gdf_point['cs'] = self.cs_point
-        
+
     def create_point_from_point(self, df_coord=False):
         '''
         This function creates a point from a point geometry.
@@ -1126,7 +1127,7 @@ class PointGeometryHandler:
         if df_coord:
             self.gdf_coord = self.gdf_point
             self.gdf_coord = pd.concat(
-                [self.gdf_coord, self.gdf_point.get_coordinates()], axis = 1) 
+                [self.gdf_coord, self.gdf_point.get_coordinates()], axis = 1)
             self.gdf_coord['id_gmsh'] = self.gdf_coord['p_ind'].astype(int)
         return p_ind
 

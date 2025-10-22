@@ -28,5 +28,5 @@ def create_domain_polygon():
     """Create a domain polygon for mesh testing."""
     coords = [(0, 0), (100, 0), (100, 100), (0, 100), (0, 0)]
     poly = Polygon(coords)
-    gdf = gpd.GeoDataFrame({'name': ['domain']}, geometry=[poly], crs='EPSG:4326')
+    gdf = gpd.GeoDataFrame({'name': ['domain'], 'cs': [10.0]}, geometry=[poly], crs='EPSG:4326')
     return gdf
