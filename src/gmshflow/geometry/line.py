@@ -4,9 +4,15 @@ from statistics import mean
 from typing import Optional
 
 import geopandas as gpd
-import gmsh
 import numpy as np
 from shapely.geometry import Point
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 from ..utils.preprocessing import (
     merge_many_multilinestring_into_one_linestring,
@@ -49,7 +55,7 @@ class LineGeometryHandler:
     def set_gpd_line(self, gdf_line: gpd.GeoDataFrame, keep_topology=False):
         '''
         This function sets the geodataframe line for meshing.
-        
+
         Parameters
         ----------
         gdf_line : geopandas.GeoDataFrame
@@ -57,7 +63,7 @@ class LineGeometryHandler:
         keep_topology : bool, optional
             If True, the topology of the line geometry is kept, but individual cell sizes wont we used
             for the simplifications. The default is False.
-        
+
         '''
         # check it is a line dataframe
         valid_types = ['LineString', 'MultiLineString']
@@ -100,7 +106,7 @@ class LineGeometryHandler:
     def create_line_from_line(self):
         '''
         This function creates a line from a line geometry.
-        
+
         Returns
         -------
         l_ind_list : list
@@ -145,7 +151,7 @@ class LineGeometryHandler:
             Geodataframe with the buffer line geometries.
         ind_s_buff : list
             List of the index of the buffer line surface.
-        
+
         Returns
         -------
         c_ind_buf : list
@@ -260,7 +266,7 @@ class LineGeometryHandler:
     def convert_to_points_for_size_fields(self):
         '''
         This function converts the line geometry to points for cell size fields.
-        
+
         Returns
         -------
         gdf_coord : geopandas.GeoDataFrame

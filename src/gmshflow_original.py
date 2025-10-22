@@ -32,7 +32,7 @@ def merge_many_multilinestring_into_one_linestring(gdf):
     AssertionError
         If the input GeoDataFrame does not contain any
          MultiLineString geometries or if the merging process fails.
-       
+
     Returns
     -------
     gdf : geopandas.GeoDataFrame
@@ -63,12 +63,12 @@ def simplify_keeping_topology(gdf, cs , plot=False):
         The cell size to be used for simplifying the geometries.
     plot : bool, optional
         If True, the simplified geometries are plotted. The default is False.
-    
+
     Returns
     -------
     gdf : geopandas.GeoDataFrame
         A GeoDataFrame with the simplified geometries.
-    
+
     '''
     topo = tp.Topology(gdf.to_crs(gdf.crs), prequantize=False)
     simple = topo.toposimplify(cs/2).to_gdf()
@@ -85,14 +85,14 @@ class GmshModel:
     Parameters
     ----------
     name : str
-        Name of the GMSH model. 
+        Name of the GMSH model.
 
     '''
     def __init__(self, name):
         '''
         Initializes the GMSH model.
-        
-        Parameters 
+
+        Parameters
         ----------
         name : str
             Name of the GMSH model.
@@ -116,7 +116,7 @@ class GmshModel:
         gmsh.model.geo.synchronize()
 
     def generate_mesh(self, dimension=2):
-        ''' 
+        '''
         Generates the mesh for the GMSH model.'''
         gmsh.model.mesh.generate(dimension)
 
@@ -129,7 +129,7 @@ class GmshModel:
     def run_gui(self):
         '''
         Runs the GMSH GUI
-        this allow to see triangular mesh results and using the 
+        this allow to see triangular mesh results and using the
         GUI to modify the meshm or to export it to other formats.
         Also allows to see the mesh quality of the elements in a detailed way.
         '''
@@ -191,9 +191,9 @@ class GmshModel:
 
 #define the class
 class GmshMeshDomain:
-    ''' 
+    '''
     Class to create a domain for meshing the domain in GMSH.
-    
+
     Parameters
     ----------
     name : str
@@ -203,7 +203,7 @@ class GmshMeshDomain:
     cs_dom : float, optional
         Cell size of the domain. The default is None, because in some case the cell size is defined
         in a field called 'cs'.
-    
+
     '''
     #define the constructor using the domain, the domain is a
     #geopandas dataframe that contains a column with the cell size called 'cs'
@@ -262,7 +262,7 @@ class GmshMeshDomain:
         This function prepares the domain for meshing by either creating a buffer around the domain, simplifying
         the domain, or both. The buffer is also affected for additional geopandas geometries that are provided to
         extend the domain. The function returns a geopandas dataframe with the domain geometry.
-        
+
         Parameters
         ----------
         mesh_area : int, optional
@@ -310,7 +310,7 @@ class GmshMeshDomain:
         '''
         This function creates a loop from the polygon geometry of the domain.
         The function returns the index of the curve loop of the outer domain.
-        
+
         Returns
         -------
         c_ind : int
@@ -339,7 +339,7 @@ class GmshMeshDomain:
     def create_exponential_field(self, df_points, fac=1.1):
         '''
         This function creates an exponential field for the domain.
-        
+
         Parameters
         ----------
         df_points : DataFrame
@@ -347,7 +347,7 @@ class GmshMeshDomain:
         fac : float, optional
             Factor that define rate of cell size growing for the exponential field.
             The default is 1.1.
-            
+
         Returns
         -------
         ind_min_field : int
@@ -381,7 +381,7 @@ class GmshMeshDomain:
     def create_linear_threshold_field(self, df_points, fac=1.2):
         '''
         This function creates a linear field for the domain.
-        
+
         Parameters
         ----------
         df_points : DataFrame
@@ -389,7 +389,7 @@ class GmshMeshDomain:
         fac : float, optional
             Factor that define rate of cell size growing for the linear field.
             The default is 1.2.
-        
+
         Returns
         -------
         ind_min_field : int
@@ -483,7 +483,7 @@ class GmshMeshDomain:
                           min_cell_overlap=0.5, triangle_vert_export=False):
         '''
         This function exports the domain mesh to a voronoi shapefile.
-        
+
         Parameters
         ----------
         ws : str
@@ -599,7 +599,7 @@ class GmshMeshDomain:
 class PolyGeometryHandler:
     '''
     Class to handle polygon geometries for meshing in GMSH.
-    
+
     Parameters
     ----------
     cs_poly : float, optional
@@ -615,7 +615,7 @@ class PolyGeometryHandler:
     def set_gpd_poly(self, gdf_poly: gpd.GeoDataFrame, keep_topology=False):
         '''
         This function sets the geodataframe polygon for meshing.
-        
+
         Parameters
         ----------
         gdf_poly : geopandas.GeoDataFrame
@@ -654,12 +654,12 @@ class PolyGeometryHandler:
     def create_loop_from_poly(self, def_surf=False):
         '''
         This function creates a loop from a polygon geometry.
-        
+
         Parameters
         ----------
         def_surf : bool, optional
             If True, the function defines the surface of the polygon. The default is False.
-        
+
         Returns
         -------
         c_ind : list
@@ -678,7 +678,7 @@ class PolyGeometryHandler:
 
             l_ind = []
             for j in range(len(p_ind)):
-                ind = geo.addLine(p_ind[j-1], p_ind[j])
+                ind = gmsh.model.geo.addLine(p_ind[j-1], p_ind[j])
                 l_ind.append(ind)
 
             c_ind = []
@@ -714,9 +714,9 @@ class PolyGeometryHandler:
             Offset of the buffer polygon. The default is 1.
         simpl_fac : float, optional
             Simplification factor for the buffer polygon. The default is 1.5.
-        def_surf : bool, optional   
+        def_surf : bool, optional
             If True, the function defines the surface of the buffer polygon. The default is True.
-        
+
         Returns
         -------
         gdf_poly : geopandas.GeoDataFrame
@@ -797,7 +797,7 @@ class PolyGeometryHandler:
     def convert_to_points_for_size_fields(self):
         '''
         This function converts the polygon geometry to points for cell size fields.
-        
+
         Returns
         -------
         gdf_coord : geopandas.GeoDataFrame
@@ -829,7 +829,7 @@ class PolyGeometryHandler:
 class LineGeometryHandler:
     '''
     Class to handle line geometries for meshing in GMSH.
-    
+
     Parameters
     ----------
     cs_line : float, optional
@@ -848,7 +848,7 @@ class LineGeometryHandler:
     def set_gpd_line(self, gdf_line: gpd.GeoDataFrame, keep_topology=False):
         '''
         This function sets the geodataframe line for meshing.
-        
+
         Parameters
         ----------
         gdf_line : geopandas.GeoDataFrame
@@ -856,7 +856,7 @@ class LineGeometryHandler:
         keep_topology : bool, optional
             If True, the topology of the line geometry is kept, but individual cell sizes wont we used
             for the simplifications. The default is False.
-        
+
         '''
         # check it is a line dataframe
         assert all((gdf_line.geom_type == 'LineString')|(gdf_line.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
@@ -890,7 +890,7 @@ class LineGeometryHandler:
     def create_line_from_line(self):
         '''
         This function creates a line from a line geometry.
-        
+
         Returns
         -------
         l_ind_list : list
@@ -935,7 +935,7 @@ class LineGeometryHandler:
             Geodataframe with the buffer line geometries.
         ind_s_buff : list
             List of the index of the buffer line surface.
-        
+
         Returns
         -------
         c_ind_buf : list
@@ -1054,7 +1054,7 @@ class LineGeometryHandler:
     def convert_to_points_for_size_fields(self):
         '''
         This function converts the line geometry to points for cell size fields.
-        
+
         Returns
         -------
         gdf_coord : geopandas.GeoDataFrame
@@ -1083,7 +1083,7 @@ class LineGeometryHandler:
 class PointGeometryHandler:
     '''
     Class to handle point geometries for meshing in GMSH.
-    
+
     Parameters
     ----------
     cs_point : float, optional
@@ -1109,7 +1109,7 @@ class PointGeometryHandler:
     def create_point_from_point(self, df_coord=False):
         '''
         This function creates a point from a point geometry.
-        
+
         Parameters
         ----------
         p_ind : list

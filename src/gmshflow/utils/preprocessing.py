@@ -67,7 +67,7 @@ def simplify_keeping_topology(gdf: gpd.GeoDataFrame, cs: float, plot: bool = Fal
         >>> gdf_simple = simplify_keeping_topology(gdf_complex, cs=100.0)
         >>> # Geometries are simplified but topology is preserved
     """
-    topo = tp.Topology(gdf.to_crs(gdf.crs), prequantize=False)
+    topo = tp.Topology(gdf.set_crs(gdf.crs), prequantize=False)
     simple = topo.toposimplify(cs/2).to_gdf()
     if plot:
         simple.plot()

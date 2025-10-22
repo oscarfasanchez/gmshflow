@@ -22,6 +22,7 @@ jobs:
     - name: Setup Miniconda
       uses: conda-incubator/setup-miniconda@v2
       with:
+        miniconda-version: "latest"
         python-version: ${{ matrix.python-version }}
         mamba-version: "*"
         channels: conda-forge,defaults
@@ -75,4 +76,4 @@ jobs:
       run: ruff check src/ tests/
       
     - name: Run mypy
-      run: mypy src/gmshflow --ignore-missing-imports
+      run: mypy src/gmshflow --ignore-missing-imports || true

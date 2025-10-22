@@ -3,9 +3,15 @@
 from typing import Optional
 
 import geopandas as gpd
-import gmsh
 
 from ..utils.preprocessing import simplify_keeping_topology
+
+try:
+    import gmsh
+    HAS_GMSH = True
+except ImportError:
+    gmsh = None
+    HAS_GMSH = False
 
 
 class PolyGeometryHandler:
@@ -92,12 +98,12 @@ class PolyGeometryHandler:
     def create_loop_from_poly(self, def_surf=False):
         '''
         This function creates a loop from a polygon geometry.
-        
+
         Parameters
         ----------
         def_surf : bool, optional
             If True, the function defines the surface of the polygon. The default is False.
-        
+
         Returns
         -------
         c_ind : list
@@ -151,9 +157,9 @@ class PolyGeometryHandler:
             Offset of the buffer polygon. The default is 1.
         simpl_fac : float, optional
             Simplification factor for the buffer polygon. The default is 1.5.
-        def_surf : bool, optional   
+        def_surf : bool, optional
             If True, the function defines the surface of the buffer polygon. The default is True.
-        
+
         Returns
         -------
         gdf_poly : geopandas.GeoDataFrame
@@ -238,7 +244,7 @@ class PolyGeometryHandler:
     def convert_to_points_for_size_fields(self):
         '''
         This function converts the polygon geometry to points for cell size fields.
-        
+
         Returns
         -------
         gdf_coord : geopandas.GeoDataFrame

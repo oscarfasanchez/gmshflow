@@ -37,15 +37,20 @@ class TestGmshModelContextManager:
 
     def test_double_initialization_validation(self):
         """Test double initialization prevention logic."""
-        from gmshflow.core.model import GmshModel
+        from gmshflow.core.model import HAS_GMSH, GmshModel
 
         model = GmshModel("test")
-        
+
         # Simulate initialized state
         model._initialized = True
-        
-        with pytest.raises(RuntimeError, match="already initialized"):
-            model.__enter__()
+
+        if HAS_GMSH:
+            with pytest.raises(RuntimeError, match="already initialized"):
+                model.__enter__()
+        else:
+            # Without GMSH, we should get ImportError first
+            with pytest.raises(ImportError, match="GMSH is required"):
+                model.__enter__()
 
     def test_safe_finalization_validation(self):
         """Test that finalize is safe to call multiple times."""
@@ -60,6 +65,6 @@ class TestGmshModelContextManager:
         # Should be safe to call multiple times
         model.finalize()
         model.close()
-        
+
         # Model should remain uninitialized
         assert not model._initialized
