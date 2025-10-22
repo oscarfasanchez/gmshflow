@@ -40,10 +40,10 @@ class TestGmshModelContextManager:
         from gmshflow.core.model import GmshModel
 
         model = GmshModel("test")
-        
+
         # Simulate initialized state
         model._initialized = True
-        
+
         with pytest.raises(RuntimeError, match="already initialized"):
             model.__enter__()
 
@@ -60,6 +60,6 @@ class TestGmshModelContextManager:
         # Should be safe to call multiple times
         model.finalize()
         model.close()
-        
+
         # Model should remain uninitialized
         assert not model._initialized

@@ -24,7 +24,7 @@ class TestGmshModelIntegration:
         # Ensure GMSH is not initialized
         try:
             gmsh.finalize()
-        except:
+        except Exception:
             pass
 
         with GmshModel("test") as model:
@@ -54,7 +54,7 @@ class TestGmshModelIntegration:
             l4 = gmsh.model.geo.addLine(p4, p1)
 
             loop = gmsh.model.geo.addCurveLoop([l1, l2, l3, l4])
-            surface = gmsh.model.geo.addPlaneSurface([loop])
+            gmsh.model.geo.addPlaneSurface([loop])
 
             model.synchronize()
             model.generate_mesh(2)
@@ -79,7 +79,7 @@ class TestGeometryHandlerIntegration:
         handler.set_gpd_poly(gdf)
 
         with GmshModel("test") as model:
-            loop_ids = handler.create_loop_from_poly()
+            handler.create_loop_from_poly()
             model.synchronize()
 
             # Verify GMSH entities were created

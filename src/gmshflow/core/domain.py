@@ -193,7 +193,7 @@ class GmshMeshDomain:
         maintaining fine resolution near important features.
 
         Args:
-            df_points: DataFrame with columns 'cs' (cell size) and 'id_gmsh' 
+            df_points: DataFrame with columns 'cs' (cell size) and 'id_gmsh'
                 (GMSH point IDs) defining control points for mesh sizing.
             fac: Growth factor for exponential field (typically 1.1-1.3).
                 Higher values create more aggressive size transitions.
@@ -246,7 +246,7 @@ class GmshMeshDomain:
     def create_linear_threshold_field(self, df_points, fac=1.2):
         '''
         This function creates a linear field for the domain.
-        
+
         Parameters
         ----------
         df_points : DataFrame
@@ -254,7 +254,7 @@ class GmshMeshDomain:
         fac : float, optional
             Factor that define rate of cell size growing for the linear field.
             The default is 1.2.
-        
+
         Returns
         -------
         ind_min_field : int
@@ -363,7 +363,7 @@ class GmshMeshDomain:
                           min_cell_overlap=0.5, triangle_vert_export=False):
         '''
         This function exports the domain mesh to a voronoi shapefile.
-        
+
         Parameters
         ----------
         ws : str
@@ -385,7 +385,7 @@ class GmshMeshDomain:
         # Validate inputs before any GMSH operations
         if not surface_ids:
             raise ValueError("No valid surfaces provided for Voronoi export")
-        
+
         surf_tags = surface_ids
         # check if the domain surface id is included in the list of surfaces
         if self.ind_s_dom not in surf_tags:

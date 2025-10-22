@@ -25,10 +25,10 @@ class GmshModel:
     """
     def __init__(self, name: str) -> None:
         """Initialize the GMSH model wrapper.
-        
+
         Args:
             name: Name identifier for the GMSH model.
-            
+
         Note:
             GMSH is not initialized until entering the context manager.
             Use 'with GmshModel(name) as model:' for proper resource management.
@@ -38,10 +38,10 @@ class GmshModel:
 
     def __enter__(self) -> "GmshModel":
         """Enter the context manager and initialize GMSH.
-        
+
         Returns:
             The GmshModel instance for use in the context.
-            
+
         Raises:
             RuntimeError: If GMSH is already initialized for this model.
         """
@@ -55,10 +55,10 @@ class GmshModel:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit the context manager and cleanup GMSH resources.
-        
+
         This ensures GMSH is properly finalized even if an exception occurs
         during mesh operations.
-        
+
         Args:
             exc_type: Exception type (if any).
             exc_val: Exception value (if any).
@@ -68,7 +68,7 @@ class GmshModel:
 
     def finalize(self) -> None:
         """Finalize and cleanup the GMSH model safely.
-        
+
         This method is idempotent and safe to call multiple times.
         It will only finalize GMSH if it was previously initialized.
         """
@@ -83,14 +83,14 @@ class GmshModel:
 
     def close(self) -> None:
         """Close the GMSH model (alias for finalize).
-        
+
         Provides a common interface for resource cleanup.
         """
         self.finalize()
 
     def _ensure_initialized(self) -> None:
         """Ensure GMSH is initialized before operations.
-        
+
         Raises:
             RuntimeError: If GMSH is not initialized (not in context manager).
         """
@@ -102,10 +102,10 @@ class GmshModel:
 
     def synchronize(self) -> None:
         """Synchronize the GMSH model geometry.
-        
+
         This is required before certain mesh operations to ensure
         all geometry changes are properly registered.
-        
+
         Raises:
             RuntimeError: If GMSH is not initialized.
         """
@@ -114,10 +114,10 @@ class GmshModel:
 
     def generate_mesh(self, dimension: int = 2) -> None:
         """Generate mesh for the GMSH model.
-        
+
         Args:
             dimension: Mesh dimension (1=lines, 2=triangles, 3=tetrahedra).
-            
+
         Raises:
             RuntimeError: If GMSH is not initialized.
         """
@@ -126,10 +126,10 @@ class GmshModel:
 
     def write(self, filename: str) -> None:
         """Write the GMSH model to a file.
-        
+
         Args:
             filename: Output filename (typically with .msh extension).
-            
+
         Raises:
             RuntimeError: If GMSH is not initialized.
         """
@@ -138,11 +138,11 @@ class GmshModel:
 
     def run_gui(self) -> None:
         """Launch the GMSH GUI for interactive mesh visualization.
-        
+
         This allows visualization of triangular mesh results and provides
         GUI tools to modify the mesh or export to other formats. Also
         enables detailed mesh quality analysis.
-        
+
         Raises:
             RuntimeError: If GMSH is not initialized.
         """
@@ -158,7 +158,7 @@ class GmshModel:
         Returns:
             DataFrame with quality measures for every triangle element. Columns include:
             - minDetJac/maxDetJac: Minimal/maximal Jacobian determinant
-            - minSJ: Sampled minimal scaled Jacobian  
+            - minSJ: Sampled minimal scaled Jacobian
             - minSICN: Minimal signed inverted condition number
             - minSIGE: Minimal signed inverted gradient error
             - gamma: Ratio of inscribed to circumscribed sphere radius
@@ -179,14 +179,14 @@ class GmshModel:
         self._ensure_initialized()
 
         _, etags, _= gmsh.model.mesh.getElements(dim=2)
-        
+
         # Check if mesh has elements
         if not etags or len(etags) == 0 or len(etags[0]) == 0:
             # Return empty DataFrame with expected columns
-            columns = ['minSICN', 'minDetJac', 'maxDetJac', 'minSJ', 'minSIGE', 'gamma', 
+            columns = ['minSICN', 'minDetJac', 'maxDetJac', 'minSJ', 'minSIGE', 'gamma',
                       'innerRadius', 'outerRadius', 'minIsotropy', 'angleShape', 'minEdge', 'maxEdge']
             return pd.DataFrame(columns=columns)
-        
+
         # Get the following quality measures of the element in the mesh
         qualities = {
             "minSICN": gmsh.model.mesh.getElementQualities(etags[0], "minSICN"),  # minimal signed inverted condition number

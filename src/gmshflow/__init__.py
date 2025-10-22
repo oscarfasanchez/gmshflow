@@ -1,6 +1,6 @@
 """GMSHFlow: A wrapper for GMSH to create meshes for MODFLOW6 groundwater flow models.
 
-This package provides an object-oriented interface to convert GIS data (shapefiles 
+This package provides an object-oriented interface to convert GIS data (shapefiles
 in GeoPandas format) into triangular/Voronoi meshes suitable for groundwater modeling.
 """
 
