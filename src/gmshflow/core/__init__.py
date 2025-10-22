@@ -1,0 +1,1 @@
+"""Core GMSH functionality for GMSHFlow."""

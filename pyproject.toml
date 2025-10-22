@@ -21,8 +21,8 @@
  [project.urls]
  Homepage = "https://github.com/oscarfasanchez/gmshflow"
 
-[tool.setuptools]
-py-modules = ["gmshflow"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
