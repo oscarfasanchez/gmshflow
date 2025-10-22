@@ -64,7 +64,7 @@ class GmshMeshDomain:
 
     def _ensure_gmsh_available(self) -> None:
         """Ensure GMSH is available for operations that require it.
-        
+
         Raises:
             ImportError: If GMSH is not installed or not available.
         """

@@ -57,7 +57,7 @@ class GmshModel:
                 "GMSH is required but is not installed. "
                 "Please install GMSH using: conda install gmsh"
             )
-        
+
         if self._initialized:
             raise RuntimeError(f"GMSH model '{self.name}' is already initialized")
 
