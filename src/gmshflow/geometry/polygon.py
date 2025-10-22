@@ -56,9 +56,17 @@ class PolyGeometryHandler:
             >>> handler.set_gpd_poly(poly_gdf, keep_topology=True)
         """
         # check it is a polygon dataframe
-        assert all(gdf_poly.geom_type == 'Polygon'), 'All geometries must be of type Polygon'
-        #check that it has a column called cs or cs_poly is not None
-        assert 'cs' in gdf_poly.columns or self.cs_poly is not None, 'The geodataframe must have a cell size column or cs_poly must be defined'
+        if not all(gdf_poly.geom_type == 'Polygon'):
+            invalid_types = gdf_poly.geom_type[gdf_poly.geom_type != 'Polygon'].unique()
+            raise ValueError(f'All geometries must be Polygon type. Found: {invalid_types}')
+        
+        # check that it has a column called cs or cs_poly is not None
+        if 'cs' not in gdf_poly.columns and self.cs_poly is None:
+            available_cols = list(gdf_poly.columns)
+            raise ValueError(
+                f"Either 'cs' column must exist in GeoDataFrame or cs_poly must be set. "
+                f"Available columns: {available_cols}"
+            )
         self.gdf_poly = gdf_poly
         #simplify the geometries
         if self.cs_poly is not None:
@@ -93,7 +101,8 @@ class PolyGeometryHandler:
             List of the index of the curve loops of the polygon geometry.
             '''
         # This function creates a loop from a polygon geometry
-        assert self.gdf_poly is not None, 'The polygon geometry is not defined'
+        if self.gdf_poly is None:
+            raise RuntimeError('Polygon geometry is not defined. Call set_gpd_poly() first.')
         # lets get the points of the polygons, then the lines, and finally the area
         for i in self.gdf_poly.index:
             poly = self.gdf_poly.loc[i, 'geometry']
@@ -159,7 +168,11 @@ class PolyGeometryHandler:
         # TODO check changes in buffer to avoid small angles,
         # and probably different meshing algorithm?
         print('starting: create_surfacegrid_from_buffer_poly')
-        assert cs_thick >= 1 and cs_thick <= 2, 'this function was designed only for offset of 1 or 2 cells, if used for more it results in bad quality meshes'
+        if not (1 <= cs_thick <= 2):
+            raise ValueError(
+                f'Buffer thickness must be 1 or 2 cells. Got: {cs_thick}. '
+                'Higher values result in poor mesh quality.'
+            )
         c_ind_buf_pos = []
         c_ind_buf_neg = []
         ind_s_buff = []
@@ -229,7 +242,11 @@ class PolyGeometryHandler:
             Geodataframe with the point geometry.
         '''
         # Implementation of conversion to points for threshold fields
-        assert 'cs' in self.gdf_poly.columns, 'gdf must have cell size column(cs)'
+        if 'cs' not in self.gdf_poly.columns:
+            available_cols = list(self.gdf_poly.columns)
+            raise ValueError(
+                f"GeoDataFrame must have 'cs' column for cell sizes. Available columns: {available_cols}"
+            )
         gdf2 = self.gdf_poly.copy()
         # apply to have different point densities in different segments of drn
         gdf2['geometry'] = self.gdf_poly.apply(lambda x: x.geometry.simplify(x.cs), axis=1)  # TODO cs_bar/2??

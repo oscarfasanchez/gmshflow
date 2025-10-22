@@ -76,9 +76,13 @@ class GmshMeshDomain:
         """
         
         if not isinstance(gdf_dom_geom, gpd.GeoDataFrame):
-            raise TypeError('The geometry must be a geopandas dataframe')
+            raise TypeError(f'Expected GeoDataFrame, got {type(gdf_dom_geom).__name__}')
+        
         if not all(gdf_dom_geom.geom_type == 'Polygon'):
-            raise ValueError('All geometries in the domain must be of type Polygon')
+            invalid_types = gdf_dom_geom.geom_type[gdf_dom_geom.geom_type != 'Polygon'].unique()
+            raise ValueError(
+                f'All geometries must be Polygon type. Found invalid types: {invalid_types}'
+            )
        
         self.gdf_list.append(gdf_dom_geom)
 
@@ -158,7 +162,10 @@ class GmshMeshDomain:
             >>> print(f"Created curve loop {loop_indices[0]}")
         """
         
-        assert self.shp_dom is not None, 'The domain shape is not defined'
+        if self.shp_dom is None:
+            raise RuntimeError(
+                'Domain shape is not defined. Call prepare_mesh_domain() first.'
+            )
         # lets add the outer points of the domain, later the lines, and finally area
         shp_dom_xy = list(zip(self.shp_dom.exterior.xy[0], self.shp_dom.exterior.xy[1]))
         p_ind = []
@@ -203,9 +210,17 @@ class GmshMeshDomain:
             ... })
             >>> min_field, exp_fields = domain.create_exponential_field(control_points, fac=1.2)
         """
-        # Implementation of exponential field creation
-        assert fac > 1, 'fac must be higher than 1, usually between 1.1 and 1.3'
-        assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'
+        # Implementation of exponential field creation  
+        if fac <= 1.0:
+            raise ValueError(
+                f'Growth factor must be > 1.0 (typically 1.1-1.3). Got: {fac}'
+            )
+        
+        if 'cs' not in df_points.columns:
+            available_cols = list(df_points.columns)
+            raise ValueError(
+                f"DataFrame must have 'cs' column for cell sizes. Available columns: {available_cols}"
+            )
         gmsh.model.geo.synchronize()
         ind_exp_field = []
         #define a distance and exponential field for each cell size 
@@ -247,8 +262,16 @@ class GmshMeshDomain:
             List of the index of the threshold fields for each cell size.'''
 
         # Implementation of linear field creation
-        assert fac > 1, 'fac must be higher than 1, usually between 1.1 and 1.3'
-        assert 'cs' in df_points.columns, 'df_points must have cell size column(cs)'
+        if fac <= 1.0:
+            raise ValueError(
+                f'Growth factor must be > 1.0 (typically 1.1-1.3). Got: {fac}'
+            )
+        
+        if 'cs' not in df_points.columns:
+            available_cols = list(df_points.columns)
+            raise ValueError(
+                f"DataFrame must have 'cs' column for cell sizes. Available columns: {available_cols}"
+            )
         gmsh.model.geo.synchronize()
         ind_thres_field = []
         #define a distance and exponential field for each cell size 
@@ -275,7 +298,11 @@ class GmshMeshDomain:
         This function sets the minimum field as the background mesh field.
         '''
         # Implementation of field setting
-        assert self.ind_min_field is not None, 'The minimum field is not defined'
+        if self.ind_min_field is None:
+            raise RuntimeError(
+                'Minimum field is not defined. Call create_exponential_field() or '
+                'create_linear_threshold_field() first.'
+            )
         gmsh.model.mesh.field.setAsBackgroundMesh(self.ind_min_field)
         gmsh.model.geo.synchronize()
 
@@ -309,8 +336,9 @@ class GmshMeshDomain:
         '''
         # Implementation of internal loop addition
         for loop_id in loop_ids:
-            #check loop_id is not in the list
-            assert loop_id not in self.loop_list_surface_dom, 'The loop was already added'
+            # check loop_id is not in the list
+            if loop_id in self.loop_list_surface_dom:
+                raise ValueError(f'Loop ID {loop_id} has already been added to the domain surface')
             self.loop_list_surface_dom.append(loop_id)
             print('Internal loop added successfully')
 
@@ -319,7 +347,10 @@ class GmshMeshDomain:
         This function creates the domain surface.
         '''
         # Implementation of domain surface creation
-        assert self.c_ind is not None, 'The domain loop is not defined'
+        if self.c_ind is None:
+            raise RuntimeError(
+                'Domain loop is not defined. Call create_domain_loop_from_poly() first.'
+            )
         if self.loop_list_surface_dom is None:
             print('Warning: no internal loops defined')
         gmsh.model.geo.synchronize()

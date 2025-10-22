@@ -35,9 +35,17 @@ class PointGeometryHandler:
         '''
         This function sets the geodataframe point for meshing.'''
         # check it is a point dataframe
-        assert all(gdf_point.geom_type == 'Point'), 'All geometries must be of type Point'
-        #check that it has a column called cs or cs_point is not None
-        assert 'cs' in gdf_point.columns or self.cs_point is not None, 'The geodataframe must have a cell size column or cs_point must be defined'
+        if not all(gdf_point.geom_type == 'Point'):
+            invalid_types = gdf_point.geom_type[gdf_point.geom_type != 'Point'].unique()
+            raise ValueError(f'All geometries must be Point type. Found: {invalid_types}')
+        
+        # check that it has a column called cs or cs_point is not None
+        if 'cs' not in gdf_point.columns and self.cs_point is None:
+            available_cols = list(gdf_point.columns)
+            raise ValueError(
+                f"Either 'cs' column must exist in GeoDataFrame or cs_point must be set. "
+                f"Available columns: {available_cols}"
+            )
         self.gdf_point = gdf_point
         #simplify the geometries
         if self.cs_point is not None:
@@ -60,7 +68,8 @@ class PointGeometryHandler:
             >>> print(f"Created {len(point_ids)} GMSH points")
         """
         # This function creates a gmsh point from a point geometry
-        assert self.gdf_point is not None, 'The point geometry is not defined'
+        if self.gdf_point is None:
+            raise RuntimeError('Point geometry is not defined. Call set_gdf_point() first.')
         # lets get the points of the polygons, then the lines, and finally the area
         p_ind = []
         for i in self.gdf_point.index:

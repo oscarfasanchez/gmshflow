@@ -55,12 +55,21 @@ class LineGeometryHandler:
         
         '''
         # check it is a line dataframe
-        assert all((gdf_line.geom_type == 'LineString')|(gdf_line.geom_type == 'MultiLineString')), 'All geometries must be of type LineString'
-        #check that it has a column called cs or cs_line is not None
-        #TODO simplify keepting topology through the package topojson
+        valid_types = ['LineString', 'MultiLineString']
+        if not all(gdf_line.geom_type.isin(valid_types)):
+            invalid_types = gdf_line.geom_type[~gdf_line.geom_type.isin(valid_types)].unique()
+            raise ValueError(f'All geometries must be LineString or MultiLineString. Found: {invalid_types}')
+        
+        # check that it has a column called cs or cs_line is not None
+        if 'cs' not in gdf_line.columns and self.cs_line is None:
+            available_cols = list(gdf_line.columns)
+            raise ValueError(
+                f"Either 'cs' column must exist in GeoDataFrame or cs_line must be set. "
+                f"Available columns: {available_cols}"
+            )
+        
+        # TODO simplify keeping topology through the package topojson
         print('Warning: the line geometries will be simplified without keeping topology, check the results')
-          
-        assert 'cs' in gdf_line.columns or self.cs_line is not None, 'The geodataframe must have a cell size column or cs_line must be defined'
         if any(gdf_line.geom_type == 'MultiLineString'):
             self.gdf_line = gdf_line.explode().reset_index()
         else:  
@@ -92,7 +101,8 @@ class LineGeometryHandler:
         l_ind_list : list
             List of the indices of the lines of the line geometry.'''
         # This function creates a gmsh point and line from a line geometry
-        assert self.gdf_line is not None, 'The line geometry is not defined'
+        if self.gdf_line is None:
+            raise RuntimeError('Line geometry is not defined. Call set_gpd_line() first.')
         # lets get the points of the polygons, then the lines, and finally the area
         for i in self.gdf_line.index:
             line = self.gdf_line.loc[i, 'geometry']
@@ -142,8 +152,12 @@ class LineGeometryHandler:
         # misuse of it with poor meshes
         print('starting: create_surfacegrid_from_buffer_line')
         print('Warning, this function expects that different feature lines are not intersecting')
-        #to get decent quality mesh, the offset should be at least 1 cell and considerable simplification
-        assert cs_thick >= 1 and cs_thick <= 2, 'this function was designed only for offset of 1 or 2 cells, if used for more it results in bad quality meshes'
+        # to get decent quality mesh, the offset should be at least 1 cell and considerable simplification
+        if not (1 <= cs_thick <= 2):
+            raise ValueError(
+                f'Buffer thickness must be 1 or 2 cells. Got: {cs_thick}. '
+                'Higher values result in poor mesh quality.'
+            )
         ind_s_buff = []
 
         #the lack of space to mesh requires further simplification
@@ -247,9 +261,13 @@ class LineGeometryHandler:
         gdf_coord : geopandas.GeoDataFrame
             Geodataframe with the point geometry.
         '''
-        #TODO fix name, and include this function inside create line and poly etc
+        # TODO fix name, and include this function inside create line and poly etc
         # Implementation of conversion to points for threshold fields
-        assert 'cs' in self.gdf_line.columns, 'gdf must have cell size column(cs)'
+        if 'cs' not in self.gdf_line.columns:
+            available_cols = list(self.gdf_line.columns)
+            raise ValueError(
+                f"GeoDataFrame must have 'cs' column for cell sizes. Available columns: {available_cols}"
+            )
         gdf2 = self.gdf_line.copy()
         # apply to have different point densities in different segments of drn
         gdf2['geometry'] = self.gdf_line.apply(lambda x: x.geometry.simplify(x.cs), axis=1)
