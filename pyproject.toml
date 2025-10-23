@@ -18,11 +18,58 @@
  license = { text = "MIT" }
  # Intentionally omit heavy geospatial dependencies here; manage them via Conda (see README).
 
- [project.urls]
- Homepage = "https://github.com/oscarfasanchez/gmshflow"
+[project.urls]
+Homepage = "https://github.com/oscarfasanchez/gmshflow"
 
-[tool.setuptools]
-py-modules = ["gmshflow"]
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0", 
+    "pytest-mock>=3.10",
+    "pytest-xdist>=3.0"
+]
+dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "black>=23.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "gmsh: tests requiring GMSH installation",
+    "slow: slow-running tests"
+]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["src/gmshflow"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError"
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
